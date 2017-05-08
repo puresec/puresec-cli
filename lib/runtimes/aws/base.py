@@ -1,3 +1,4 @@
+import boto3
 import re
 
 """
@@ -13,23 +14,16 @@ def get_regions(filename, content, regions, client, service, environment):
 def get_resources(filename, content, resources, client, service, environment)
 """
 
-# { type(client): region }
-SERVICE_REGIONS_CACHE = {}
+ALL_REGIONS = boto3.Session().get_available_regions('ec2')
 def get_regions(filename, content, regions, client, environment):
-    service_regions = SERVICE_REGIONS_CACHE.get(type(client))
-    if service_regions is None:
-        service_regions = SERVICE_REGIONS_CACHE[type(client)] = [
-                region['RegionName'] for region in client.describe_regions()['Regions']
-                ]
-
     # From content
     regions.update(
-            region for region in service_regions
+            region for region in ALL_REGIONS
             if region in content
             )
     # From environment
     regions.update(
-            region for region in service_regions
+            region for region in ALL_REGIONS
             if any(region in value for value in environment.values())
             )
 
