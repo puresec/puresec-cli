@@ -1,6 +1,7 @@
-from utils import eprint
 from .. import arguments
+from ..utils import eprint
 import abc
+import os
 
 class Base:
     __metaclass__ = abc.ABCMeta
@@ -20,7 +21,7 @@ class Base:
             self.resource_template = self.framework.get_resource_template()
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, type, value, traceback):
         pass
@@ -50,11 +51,11 @@ class Base:
         for subdir, dirs, files in os.walk(root):
             for file in files:
                 filename = os.path.join(subdir, file)
-                with open(file_path, 'r') as file:
+                with open(filename, 'rb') as file:
                     processor(
                             filename,
                             file.read(),
                             *args,
-                            **kwargs,
+                            **kwargs
                             )
 

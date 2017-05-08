@@ -1,4 +1,4 @@
-from utils import eprint
+from ..utils import eprint
 import abc
 
 class Base:
@@ -9,7 +9,7 @@ class Base:
         self.config = config
 
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, type, value, traceback):
         pass
@@ -23,6 +23,9 @@ class Base:
 
     def get_default_region(self):
         return None
+
+    def fix_name(self, name):
+        return name
 
     def get_function_root(self, name):
         return None

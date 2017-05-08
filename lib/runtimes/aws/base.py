@@ -25,7 +25,7 @@ def get_regions(filename, content, regions, environment):
     # From content
     regions.update(
             region for region in ALL_REGIONS
-            if region in content
+            if region in str(content)
             )
     # From environment
     regions.update(
@@ -61,7 +61,7 @@ def get_dynamodb_resources(filename, content, resources, client, environment):
     resources.update(
             DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)
             for table, pattern in tables.items()
-            if pattern.match(content)
+            if pattern.search(str(content))
             )
     # From environment (TODO: once enough for entire lambda)
     resources.update(

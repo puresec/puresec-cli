@@ -1,10 +1,10 @@
 from ...utils import eprint
-import base
+from . import base
 import re
 
-SERVICE_CALL_PATTERN_TEMPLATE = r"\.\s*{}\(((?:.|\n)*)\)" # .VALUE(OUTPUT)
+SERVICE_CALL_PATTERN_TEMPLATE = r"\.\s*{}\((.*)\)" # .VALUE(OUTPUT)
 SERVICE_CALL_PATTERNS = dict(
-        (name, re.compile(SERVICE_CALL_PATTERN_TEMPLATE.format(client_name), re.MULTILINE))
+        (name, re.compile(SERVICE_CALL_PATTERN_TEMPLATE.format(client_name), re.MULTILINE | re.DOTALL))
         for name, client_name in
         (
             ('sqs', "SQS"),
@@ -23,11 +23,11 @@ AUTH_PATTERN = re.compile(r"accessKeyId|secretAccessKey|sessionToken|credentials
 FILENAME_PATTERN = re.compile(r"\.js$", re.IGNORECASE)
 
 def get_services(filename, content, permissions, default_region, default_account, environment):
-    if not FILENAME_PATTERN.match(filename):
+    if not FILENAME_PATTERN.search(filename):
         return
 
     for service, pattern in SERVICE_CALL_PATTERNS.items():
-        for service_match in pattern.finditer(content):
+        for service_match in pattern.finditer(str(content)):
             arguments = service_match.group(1)
             if arguments:
                 # region
@@ -38,7 +38,7 @@ def get_services(filename, content, permissions, default_region, default_account
                     eprint("warn: incomprehensive region: {} (in {})".format(arguments, filename))
                     region = '*'
                 # account
-                if AUTH_PATTERN.match(arguments):
+                if AUTH_PATTERN.search(arguments):
                     eprint("warn: unknown account: {} (in {})".format(arguments, filename))
                     account = '*'
                 else:
@@ -80,7 +80,7 @@ def _get_variable_from_arguments(arguments, pattern, environment):
         2. None if argument doesn't exist
         3. '' if can't process argument value
     """
-    match = pattern.match(arguments)
+    match = pattern.search(arguments)
     if not match:
         return None
 

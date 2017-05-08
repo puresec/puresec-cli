@@ -1,7 +1,8 @@
-from base import Base
 from collections import defaultdict
 from copy import deepcopy
 from importlib import import_module
+from .base import Base
+from ..runtimes import aws as runtimes
 from ..utils import deepmerge, eprint
 import boto3
 import botocore
@@ -13,7 +14,7 @@ class Handler(Base):
         super().__init__(path, config, resource_template, framework)
 
         try:
-            resource_template = open(self.resource_template, 'rb')
+            resource_template = open(self.resource_template, 'r')
         except FileNotFoundError:
             eprint("error: could not find cloud formation template in: {}".format(self.resource_template))
             raise SystemExit(2)
@@ -61,20 +62,26 @@ class Handler(Base):
 
     def process(self):
         self._function_permissions = {}
-        for name, resource_config in self.cloudformation_template.get('Resources', {}).items():
+        for resource_id, resource_config in self.cloudformation_template.get('Resources', {}).items():
             if resource_config['Type'] == 'AWS::Lambda::Function':
-                # ignoring runtime version (e.g nodejs4.3)
+                # Getting name
+                name = resource_config.get('Properties', {}).get('FunctionName')
+                if not name:
+                    eprint("error: lambda name not specified for '{}'".format(resource_id))
+                    raise SystemExit(2)
+                if self.framework:
+                    name = self.framework.fix_name(name)
+                # Getting runtime
                 runtime = resource_config.get('Properties', {}).get('Runtime')
                 if not runtime:
                     eprint("error: lambda runtime not specified for '{}'".format(name))
                     raise SystemExit(2)
-                runtime = re.sub(r"[\d\.]+$", '', runtime)
-                try:
-                    runtime = import_module(runtime, '..runtimes.aws')
-                except ImportError:
-                    eprint("error: lambda runtime not supported for '{}', sorry :(".format(runtime))
-                    raise SystemExit(2)
-
+                runtime = re.sub(r"[\d\.]+$", '', runtime) # ignoring runtime version (e.g nodejs4.3)
+                if runtime not in runtimes.__all__:
+                    eprint("warn: lambda runtime not supported for '{}' (for '{}'), sorry :(".format(runtime, name))
+                    continue
+                runtime = import_module(".runtimes.aws.{}".format(runtime), 'lib')
+                # Getting environment
                 environment = resource_config.get('Properties', {}).get('Environment', {}).get('Variables', {})
 
                 # { service: { region: { account: { resource } } } }
@@ -87,12 +94,12 @@ class Handler(Base):
     def _process_function_services(self, name, runtime, environment):
         super()._process_function(
                 name,
-                runtime.get_permissions,
+                runtime.get_services,
                 # custom arguments to processor
                 self._function_permissions[name],
                 default_region=self.default_region,
                 default_account=self.default_account,
-                envrionment=environment
+                environment=environment
                 )
 
         self._normalize_permissions(self._function_permissions[name])
@@ -109,7 +116,7 @@ class Handler(Base):
                             # custom arguments to processor
                             possible_regions,
                             service=service,
-                            environment=envrionment
+                            environment=environment
                             )
                     # moving the account from '*' to possible regions
                     if possible_regions:
@@ -135,7 +142,7 @@ class Handler(Base):
                             resources,
                             client=self._get_client(service, region, account),
                             service=service,
-                            environment=envrionment
+                            environment=environment
                             )
                     self._normalize_resources(resources, (service, region, account))
 
@@ -170,7 +177,7 @@ class Handler(Base):
         if client:
             return client # from cache
 
-        if account == self.default_account
+        if account == self.default_account:
             client = self.session.client(
                     service,
                     region_name=region
