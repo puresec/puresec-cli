@@ -1,59 +1,56 @@
-import sys
-import os
-import argparse
-import cloudformation
-import analyser
+#!/usr/bin/env python3
 
-def get_cf_path(code_dir, framework):
-    """ Looks for CloudFormation json files relevant for the provided framework
-    """
-    if framework == 'serverless':
-        relevant_dir = os.path.join(code_dir, '.serverless')
-        create_stack_file = os.path.join(relevant_dir, 'cloudformation-template-create-stack.json')
-        update_stack_file = os.path.join(relevant_dir, 'cloudformation-template-update-stack.json')
-        if os.path.exists(update_stack_file):
-            return update_stack_file
-        else:
-            return create_stack_file
+from contextlib import contextmanager
+from importlib import import_module
+import argparse
+import os
+import yaml
+
+@contextmanager
+def generate_config(args):
+    config_path = os.path.join(args.code_path, "puresec-least-privilege.yml")
+    if os.path.isfile(config_path):
+        with open(config_path, 'rb') as config_file:
+            config = yaml.load(config_file)
+    else:
+        config = {}
+
+    yield config
+
+    with open(config_path, 'wb') as config_file:
+        yaml.dump(config_file)
+
+@contextmanager
+def generate_framework(args, config):
+    if not args.framework:
+        yield None
+    else:
+        with import_module(args.framework, 'frameworks').Handler(args.code_path, config=config) as framework:
+            yield framework
+
+@contextmanager
+def generate_provider(args, framework, config):
+    with import_module(args.provider, 'providers').Handler(args.code_path, resource_template=args.resource_template, framework=framework, config=config) as provider:
+        yield provider
 
 def main():
-
-    parser = argparse.ArgumentParser(description='PureSec Least Privilege Role Creator')
-    parser.add_argument('--code_dir',
-                        action="store",
-                        dest="code_dir",
+    parser = argparse.ArgumentParser(description="PureSec Least Privilege Role Creator")
+    parser.add_argument('code_path', nargs='?', default=os.getcwd(),
                         help="Path to base directory for functions code")
-    parser.add_argument('--framework',
-                        action="store",
-                        dest="framework",
+    parser.add_argument('--framework', '-f', default='none', choices=['none', 'serverless'],
                         help="Framework used for deploying")
-    parser.add_argument('--cf_path',
-                        action="store",
-                        dest="cf_template_path",
-                        help="CloudFormation json path")
-
-
+    parser.add_argument('--provider', '-p', choices=['aws'], required=True,
+                        help="Name of the cloud provider")
+    parser.add_argument('--resource-template', '-t',
+                        help="Provider-specific resource template (e.g CloudFormation JSON for AWS)")
 
     args = parser.parse_args()
 
-    code_dir = args.code_dir
-
-    if 'cf_path' not in args:
-        if 'framework' not in args:
-            print "Please provide CloudFormation path or used Framework."
-        else:
-            framework = args.framework
-            cf_path = get_cf_path(code_dir, framework)
-    else:
-        cf_path = args.cf_template_path
-
-    cf = cloudformation.CloudFormation(cf_path=cf_path)
-    cf.parse()
-
-    an = analyser.Analyser(cf, code_dir, framework)
-    an.get_minimal_roles_from_code()
-
-
+    with generate_config(args) as config:
+        with generate_framework(args, config) as framework:
+            with generate_provider(args, framework, config) as provider:
+                provider.process()
+                # TODO: output
 
 if __name__ == "__main__":
     main()
