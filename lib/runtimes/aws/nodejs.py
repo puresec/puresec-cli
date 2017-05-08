@@ -2,19 +2,18 @@ from ...utils import eprint
 import base
 import re
 
-SERVICE_CLIENT_NAMES = {
-        'sqs': "SQS",
-        's3': "S3",
-        'dynamodb': "DynamoDB",
-        'sns': "SNS",
-        'kinesis': "Kinesis",
-        'ses': "SES"
-        }
-
-SERVICE_PATTERNS = dict(
-        (name, re.compile(r"\.\s*{}\(((?:.|\n)*)\)".format(client_name), re.MULTILINE))
-        for name, client_name in SERVICE_CLIENT_NAMES.items()
-        )
+SERVICE_CALL_PATTERN_TEMPLATE = r"\.\s*{}\(((?:.|\n)*)\)" # .VALUE(OUTPUT)
+SERVICE_CALL_PATTERNS = dict(
+        (name, re.compile(SERVICE_CALL_PATTERN_TEMPLATE.format(client_name), re.MULTILINE))
+        for name, client_name in
+        (
+            ('sqs', "SQS"),
+            ('s3', "S3"),
+            ('dynamodb', "DynamoDB"),
+            ('sns', "SNS"),
+            ('kinesis', "Kinesis"),
+            ('ses', "SES"),
+        ))
 
 # Argument patterns
 ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*)\s*,?"
@@ -27,7 +26,7 @@ def get_services(filename, content, permissions, default_region, default_account
     if not FILENAME_PATTERN.match(filename):
         return
 
-    for service, pattern in SERVICE_PATTERNS.items():
+    for service, pattern in SERVICE_CALL_PATTERNS.items():
         for service_match in pattern.finditer(content):
             arguments = service_match.group(1)
             if arguments:
@@ -36,11 +35,11 @@ def get_services(filename, content, permissions, default_region, default_account
                 if region is None:
                     region = default_region
                 elif not region:
-                    eprint("WARNING: Incomprehensive region: {} (in {})".format(arguments, filename))
+                    eprint("warn: incomprehensive region: {} (in {})".format(arguments, filename))
                     region = '*'
                 # account
                 if AUTH_PATTERN.match(arguments):
-                    eprint("WARNING: Unknown account: {} (in {})".format(arguments, filename))
+                    eprint("warn: unknown account: {} (in {})".format(arguments, filename))
                     account = '*'
                 else:
                     account = default_account
@@ -50,14 +49,12 @@ def get_services(filename, content, permissions, default_region, default_account
 
             permissions[service][region][account] # accessing to initialize defaultdict
 
-    return permissions
-
-def get_regions(filename, content, regions, client, service, environment):
+def get_regions(filename, content, regions, service, environment):
     processor = SERVICE_RESOURCES_PROCESSOR.get(service) or base.get_regions
-    processor(filename, content, regions, client=client, environment=environment)
+    processor(filename, content, regions, environment=environment)
 
 REGION_PROCESSOR = {
-        # service: function(filename, content, regions, client, environment)
+        # service: function(filename, content, regions, environment)
         }
 
 def get_resources(filename, content, resources, client, service, environment):

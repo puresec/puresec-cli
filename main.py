@@ -2,13 +2,13 @@
 
 from contextlib import contextmanager
 from importlib import import_module
-import argparse
+from lib import arguments
 import os
 import yaml
 
 @contextmanager
 def generate_config(args):
-    config_path = os.path.join(args.code_path, "puresec-least-privilege.yml")
+    config_path = os.path.join(args.path, "puresec-least-privilege.yml")
     if os.path.isfile(config_path):
         with open(config_path, 'rb') as config_file:
             config = yaml.load(config_file)
@@ -25,26 +25,16 @@ def generate_framework(args, config):
     if not args.framework:
         yield None
     else:
-        with import_module(args.framework, 'frameworks').Handler(args.code_path, config=config) as framework:
+        with import_module(args.framework, 'lib.frameworks').Handler(args.path, config=config) as framework:
             yield framework
 
 @contextmanager
 def generate_provider(args, framework, config):
-    with import_module(args.provider, 'providers').Handler(args.code_path, resource_template=args.resource_template, framework=framework, config=config) as provider:
+    with import_module(args.provider, 'lib.providers').Handler(args.path, resource_template=args.resource_template, framework=framework, config=config) as provider:
         yield provider
 
 def main():
-    parser = argparse.ArgumentParser(description="PureSec Least Privilege Role Creator")
-    parser.add_argument('code_path', nargs='?', default=os.getcwd(),
-                        help="Path to base directory for functions code")
-    parser.add_argument('--framework', '-f', default='none', choices=['none', 'serverless'],
-                        help="Framework used for deploying")
-    parser.add_argument('--provider', '-p', choices=['aws'], required=True,
-                        help="Name of the cloud provider")
-    parser.add_argument('--resource-template', '-t',
-                        help="Provider-specific resource template (e.g CloudFormation JSON for AWS)")
-
-    args = parser.parse_args()
+    args = arguments.parser.parse_args()
 
     with generate_config(args) as config:
         with generate_framework(args, config) as framework:
@@ -52,5 +42,5 @@ def main():
                 provider.process()
                 # TODO: output
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

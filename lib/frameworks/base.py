@@ -4,8 +4,8 @@ import abc
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, code_path, config):
-        self.code_path = code_path
+    def __init__(self, path, config):
+        self.path = path
         self.config = config
 
     def __enter__(self):
@@ -15,8 +15,8 @@ class Base:
         pass
 
     def get_resource_template(self):
-        eprint("ERROR: Could not get resource template from framework {}.", type(self).__name__)
-        raise SystemExit(-2)
+        eprint("error: could not get resource template from framework '{}'", type(self).__name__)
+        raise SystemExit(2)
 
     def get_default_profile(self):
         return None

@@ -4,25 +4,41 @@ from copy import deepcopy
 from importlib import import_module
 from ..utils import deepmerge, eprint
 import boto3
+import botocore
 import json
 import re
 
 class Handler(Base):
-    def __init__(self, code_path, config, resource_template=None, framework=None):
-        super().__init__(code_path, config, resource_template, framework)
+    def __init__(self, path, config, resource_template=None, framework=None):
+        super().__init__(path, config, resource_template, framework)
 
-        with open(self.resource_template, 'rb') as resource_template:
-            self.cloudformation_template = json.load(resource_template)
+        try:
+            resource_template = open(self.resource_template, 'rb')
+        except FileNotFoundError:
+            eprint("error: could not find cloud formation template in: {}".format(self.resource_template))
+            raise SystemExit(2)
 
-        self.init_default_profile()
+        with resource_template:
+            try:
+                self.cloudformation_template = json.load(resource_template)
+            except ValueError as e:
+                eprint("error: invalid cloud formation template:\n{}".format(e))
+                raise SystemExit(-1)
+
+        self.init_session()
         self.init_default_region()
         self.init_default_account()
 
-    def init_default_profile(self):
+    def init_session(self):
         if self.framework:
-            self.default_profile = self.framework.get_default_profile()
+            profile = self.framework.get_default_profile()
         else:
-            self.default_profile = None
+            profile = None
+        try:
+            self.session = boto3.Session(profile_name=profile)
+        except botocore.exceptions.BotoCoreError as e:
+            eprint("error: failed to create aws session:\n{}".format(e))
+            raise SystemExit(-1)
 
     def init_default_region(self):
         if self.framework:
@@ -31,23 +47,35 @@ class Handler(Base):
 
         if not self.default_region:
             # from default config (or ENV)
-            self.default_region = boto3.Session(profile_name=self.default_profile).region_name
+            self.default_region = self.session.region_name
 
         if not self.default_region:
             self.default_region = '*'
 
     def init_default_account(self):
-        self.default_account = boto3.client('sts', profile=self.default_profile).get_caller_identity()['Account']
+        try:
+            self.default_account = self.session.client('sts').get_caller_identity()['Account']
+        except botocore.exceptions.BotoCoreError as e:
+            eprint("error: failed to get account from aws:\n{}".format(e))
+            raise SystemExit(-1)
 
     def process(self):
         self._function_permissions = {}
-        for name, resource_config in self.cloudformation_template['Resources'].items():
+        for name, resource_config in self.cloudformation_template.get('Resources', {}).items():
             if resource_config['Type'] == 'AWS::Lambda::Function':
                 # ignoring runtime version (e.g nodejs4.3)
-                runtime = re.sub(r"[\d\.]+$", '', resource_config['Properties']['Runtime'])
-                runtime = import_module(runtime, '..runtimes.aws')
+                runtime = resource_config.get('Properties', {}).get('Runtime')
+                if not runtime:
+                    eprint("error: lambda runtime not specified for '{}'".format(name))
+                    raise SystemExit(2)
+                runtime = re.sub(r"[\d\.]+$", '', runtime)
+                try:
+                    runtime = import_module(runtime, '..runtimes.aws')
+                except ImportError:
+                    eprint("error: lambda runtime not supported for '{}', sorry :(".format(runtime))
+                    raise SystemExit(2)
 
-                environment = resource_config['Properties']['Environment']['Variables']
+                environment = resource_config.get('Properties', {}).get('Environment', {}).get('Variables', {})
 
                 # { service: { region: { account: { resource } } } }
                 self._function_permissions[name] = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
@@ -69,7 +97,7 @@ class Handler(Base):
 
         self._normalize_permissions(self._function_permissions[name])
 
-    def _process_function_regiions(self, name, runtime, environment):
+    def _process_function_regions(self, name, runtime, environment):
         # expanding '*' regions to all regions seen within the code
         for service, regions in self._function_permissions[name].items():
             if '*' in regions:
@@ -80,7 +108,6 @@ class Handler(Base):
                             runtime.get_regions,
                             # custom arguments to processor
                             possible_regions,
-                            client=self._get_client(service, account),
                             service=service,
                             environment=envrionment
                             )
@@ -106,7 +133,7 @@ class Handler(Base):
                             runtime.get_resources,
                             # custom arguments to processor
                             resources,
-                            client=self._get_client(service, account),
+                            client=self._get_client(service, region, account),
                             service=service,
                             environment=envrionment
                             )
@@ -128,12 +155,12 @@ class Handler(Base):
     def _normalize_resources(self, resources, parents):
         if not resources:
             resources.add('*')
-            eprint("WARNING: Unknown permissions for: {}", repr(parents))
+            eprint("warn: unknown permissions for '{}'", repr(parents))
         else:
             for match_all in Handler.MATCH_ALL_RESOURCES:
                 if match_all in resources:
                     resources.clear()
-                    resources.match_all()
+                    resources.add(match_all)
                     break
 
     # { service: { region: { account: client } } }
@@ -144,22 +171,20 @@ class Handler(Base):
             return client # from cache
 
         if account == self.default_account
-            client = boto3.client(
+            client = self.session.client(
                     service,
-                    profile_name=self.default_profile,
-                    region=region
+                    region_name=region
                     )
         else:
             account_config = self.config.setdefault('aws', {}).setdefault('accounts', {}).setdefault(account, {})
             if not 'access_key_id' in account_config:
                 account_config['access_key_id'] = input("Enter AWS access key id for {}: ".format(account))
                 account_config['secret_access_key'] = input("Enter AWS secret access key for {}: ".format(account))
-            client = boto3.client(
+            client = self.session.client(
                     service,
-                    profile_name=self.default_profile,
-                    region=region,
-                    access_key_id=account_config['access_key_id'],
-                    secret_access_key=account_config['secret_access_key']
+                    region_name=region,
+                    aws_access_key_id=account_config['access_key_id'],
+                    aws_secret_access_key=account_config['secret_access_key']
                     )
 
         Handler.CLIENTS_CACHE[service][region][account] = client

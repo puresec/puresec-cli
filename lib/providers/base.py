@@ -1,19 +1,21 @@
 from utils import eprint
+from .. import arguments
 import abc
 
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, code_path, config, resource_template=None, framework=None):
-        self.code_path = code_path
+    def __init__(self, path, config, resource_template=None, framework=None):
+        self.path = path
         self.config = config
         self.resource_template = resource_template
         self.framework = framework
 
         if not self.resource_template:
             if not self.framework:
-                eprint("ERROR: Must specify either framework or resource template.")
-                raise SystemExit(-2)
+                arguments.parser.print_usage()
+                eprint("error: must specify either --framework or --resource-template")
+                raise SystemExit(2)
 
             self.resource_template = self.framework.get_resource_template()
 
@@ -37,13 +39,13 @@ class Base:
             root = self.config.get('functions', {}).get(name, {}).get('root')
         # From user input
         if not root:
-            root = input("Enter root directory for function '{}': {}/".format(name, self.code_path))
+            root = input("Enter root directory for function '{}': {}/".format(name, self.path))
             self.config.setdefault('functions', {}).setdefault(name, {})['root'] = root
 
         return root
 
     def _process_function(self, name, processor, *args, **kwargs):
-        root = os.path.join(self.code_path, self._get_function_root(name))
+        root = os.path.join(self.path, self._get_function_root(name))
 
         for subdir, dirs, files in os.walk(root):
             for file in files:
