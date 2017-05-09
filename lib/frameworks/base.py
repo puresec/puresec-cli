@@ -1,4 +1,4 @@
-from ..utils import eprint
+from lib.utils import eprint
 import abc
 
 class Base:

@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from . import frameworks, providers
+from lib import frameworks, providers
 import os
 
 parser = ArgumentParser(description="PureSec Least Privilege Role Creator")

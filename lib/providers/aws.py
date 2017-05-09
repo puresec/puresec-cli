@@ -1,9 +1,9 @@
 from collections import defaultdict
 from copy import deepcopy
 from importlib import import_module
-from .base import Base
-from ..runtimes import aws as runtimes
-from ..utils import deepmerge, eprint
+from lib.providers.base import Base
+from lib.runtimes import aws as runtimes
+from lib.utils import deepmerge, eprint
 import boto3
 import botocore
 import json
@@ -80,7 +80,7 @@ class Handler(Base):
                 if runtime not in runtimes.__all__:
                     eprint("warn: lambda runtime not supported for '{}' (for '{}'), sorry :(".format(runtime, name))
                     continue
-                runtime = import_module(".runtimes.aws.{}".format(runtime), 'lib')
+                runtime = import_module("lib.runtimes.aws.{}".format(runtime))
                 # Getting environment
                 environment = resource_config.get('Properties', {}).get('Environment', {}).get('Variables', {})
 

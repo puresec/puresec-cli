@@ -1,5 +1,5 @@
-from ...utils import eprint
-from . import base
+from lib.utils import eprint
+from lib.runtimes.aws import base
 import re
 
 SERVICE_CALL_PATTERN_TEMPLATE = r"\.\s*{}\((.*)\)" # .VALUE(OUTPUT)
