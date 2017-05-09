@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from contextlib import contextmanager
 from importlib import import_module
 from lib import arguments
@@ -8,7 +6,7 @@ import yaml
 
 @contextmanager
 def generate_config(args):
-    config_path = os.path.join(args.path, "puresec-least-privilege.yml")
+    config_path = os.path.join(args.path, "least-privileges.yml")
     if os.path.isfile(config_path):
         with open(config_path, 'r') as config_file:
             config = yaml.load(config_file)
@@ -25,12 +23,12 @@ def generate_framework(args, config):
     if not args.framework:
         yield None
     else:
-        with import_module("lib.frameworks.{}".format(args.framework)).Handler(args.path, config=config) as framework:
+        with import_module("lib.frameworks.{}".format(args.framework)).Framework(args.path, config=config) as framework:
             yield framework
 
 @contextmanager
 def generate_provider(args, framework, config):
-    with import_module("lib.providers.{}".format(args.provider)).Handler(args.path, resource_template=args.resource_template, framework=framework, config=config) as provider:
+    with import_module("lib.providers.{}".format(args.provider)).Provider(args.path, resource_template=args.resource_template, framework=framework, config=config) as provider:
         yield provider
 
 def main(argv=None):

@@ -24,7 +24,7 @@ class Base:
     def get_default_region(self):
         return None
 
-    def fix_name(self, name):
+    def fix_function_name(self, name):
         return name
 
     def get_function_root(self, name):

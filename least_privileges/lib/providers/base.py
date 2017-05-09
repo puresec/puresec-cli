@@ -1,7 +1,6 @@
 from lib import arguments
 from lib.utils import eprint
 import abc
-import os
 
 class Base:
     __metaclass__ = abc.ABCMeta
@@ -22,8 +21,8 @@ class Base:
         >>> Handler("path/to/project", config={})
         Traceback (most recent call last):
         SystemExit: 2
-        >>> mock.called('eprint', 'error: must specify either --framework or --resource-template')
-        True
+        >>> mock.calls_for('eprint')
+        'error: must specify either --framework or --resource-template'
 
         >>> Handler("path/to/project", config={}, resource_template="path/to/resource_template").resource_template
         'path/to/resource_template'
@@ -32,6 +31,7 @@ class Base:
         >>> Handler("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", {})).resource_template
         'path/to/custom_resource_template'
         """
+
         self.path = path
         self.config = config
         self.resource_template = resource_template
@@ -64,7 +64,7 @@ class Base:
         >>> class Handler(Base):
         ...     pass
         >>> from lib.frameworks.base import Base as FrameworkBase
-        >>> class Framework:
+        >>> class Framework(FrameworkBase):
         ...     def __init__(self, has_function_root):
         ...         self.has_function_root = has_function_root
         ...     def get_resource_template(self):
@@ -108,6 +108,7 @@ class Base:
         >>> 'input' in mock.calls
         True
         """
+
         root = None
         # From framework
         if self.framework:
@@ -121,49 +122,4 @@ class Base:
             self.config.setdefault('functions', {}).setdefault(name, {})['root'] = root
 
         return root
-
-    def _process_function(self, name, processor, *args, **kwargs):
-        """
-        >>> from test.mock import Mock
-        >>> mock = Mock(__name__)
-
-        >>> class Handler(Base):
-        ...     pass
-
-        >>> processed = []
-        >>> def processor(filename, content, custom_positional, custom_keyword):
-        ...     processed.append((filename, content, custom_positional, custom_keyword))
-
-        >>> mock.filesystem = {'path': {'to': {'function': {
-        ...     'a': True,
-        ...     'b': {'c': True, 'd': True},
-        ...     }}}}
-        >>> with mock.open("path/to/function/a", 'w') as f:
-        ...     f.write("a content") and None
-        >>> with mock.open("path/to/function/b/c", 'w') as f:
-        ...     f.write("c content") and None
-        >>> with mock.open("path/to/function/b/d", 'w') as f:
-        ...     f.write("d content") and None
-
-        >>> config = {'functions': {'function': {'root': "to/function"}}}
-        >>> handler = Handler("path", config=config, resource_template="path/to/resource_template")
-        >>> handler._process_function('function', processor, 'positional', custom_keyword='keyword')
-        >>> processed.sort()
-        >>> processed
-        [('path/to/function/a', b'a content', 'positional', 'keyword'),
-         ('path/to/function/b/c', b'c content', 'positional', 'keyword'),
-         ('path/to/function/b/d', b'd content', 'positional', 'keyword')]
-        """
-        root = os.path.join(self.path, self._get_function_root(name))
-
-        for path, dirs, files in os.walk(root):
-            for file in files:
-                filename = os.path.join(path, file)
-                with open(filename, 'rb') as file:
-                    processor(
-                            filename,
-                            file.read(),
-                            *args,
-                            **kwargs
-                            )
 

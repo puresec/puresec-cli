@@ -59,15 +59,16 @@ def deepmerge(a, b):
     Traceback (most recent call last):
     Exception: Do not know how to merge `{'c': 1}` with `{2}`
     """
+
     for k in b:
         if k not in a:
             a[k] = b[k]
             continue
         if type(a[k]) is not type(b[k]):
             raise Exception("Do not know how to merge `{}` with `{}`".format(repr(a[k]), repr(b[k])))
-        if type(a[k]) is dict:
+        if isinstance(a[k], dict):
             deepmerge(a[k], b[k])
-        elif type(a[k]) is set:
+        elif isinstance(a[k], set):
             a[k].update(b[k])
         else:
             if a[k] != b[k]:

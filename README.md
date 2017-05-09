@@ -1,4 +1,4 @@
-# puresec-least-privilege
+# least-privileges
 
 A CLI tool for creating IAM roles with least privilege permissions using static code analysis.
 
@@ -6,12 +6,27 @@ A CLI tool for creating IAM roles with least privilege permissions using static 
 
 ```bash
 pip install -r requirements.txt requirements/*
-nosetests -c nose.cfg
+nosetests -c nose.cfg least_privileges/
 ```
 
 ## Usage
 
 ```bash
 pip install -r requirements.txt requirements/<depending on your needs>.txt
-./main.py --help
+bin/lp --help
+```
+
+### Serverless
+
+In your Serverless project's root directory:
+
+```bash
+npm install --save-dev serverless-dumpconfig
+```
+
+And add the plugin to your `serverless.yml`:
+
+```yaml
+plugins:
+  - serverless-dumpconfig
 ```
