@@ -40,6 +40,6 @@ class Base:
         for path, dirs, files in os.walk(self.root):
             for file in files:
                 filename = os.path.join(path, file)
-                with open(filename, 'r') as file:
+                with open(filename, 'r', errors='replace') as file:
                     processor(filename, file, *args, **kwargs)
 

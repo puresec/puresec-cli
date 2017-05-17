@@ -2,6 +2,7 @@ from importlib import import_module
 from lib.providers.base import Base
 from lib.runtimes import aws as runtimes
 from lib.utils import eprint
+from shutil import which
 import boto3
 import botocore
 import json
@@ -39,7 +40,7 @@ class AwsProvider(Base):
         super().__init__(path, config, resource_template, framework)
 
         try:
-            resource_template = open(self.resource_template, 'r')
+            resource_template = open(self.resource_template, 'r', errors='replace')
         except FileNotFoundError:
             eprint("error: could not find CloudFormation template in: {}".format(self.resource_template))
             raise SystemExit(2)
@@ -83,7 +84,7 @@ class AwsProvider(Base):
         >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json").session
         Session(region_name=None)
 
-        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {})).session
+        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", 'ls', {})).session
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
@@ -169,7 +170,7 @@ class AwsProvider(Base):
         ...     f.write('{}') and None
         >>> from lib.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
-        ...     def fix_function_name(self, name):
+        ...     def get_function_name(self, name):
         ...         return name[1:]
 
         >>> from lib.runtimes.aws.base import Base as RuntimeBase
@@ -179,7 +180,7 @@ class AwsProvider(Base):
         ...             self.processed = True
         >>> mock.mock(None, 'import_module', lambda name: RuntimeModule)
 
-        >>> handler = AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}))
+        >>> handler = AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", 'ls', {}))
         >>> handler.default_region = "default_region"
         >>> handler.default_account = "default_account"
         >>> mock.mock(handler, '_get_function_root', lambda name: "functions/{}".format(name))
@@ -307,7 +308,7 @@ class AwsProvider(Base):
                     eprint("error: lambda name not specified at `{}`".format(resource_id))
                     raise SystemExit(2)
                 if self.framework:
-                    name = self.framework.fix_function_name(name)
+                    name = self.framework.get_function_name(name)
                 root = os.path.join(self.path, self._get_function_root(name))
                 # Getting runtime
                 runtime = resource_config.get('Properties', {}).get('Runtime')

@@ -2,23 +2,23 @@ from lib.utils import eprint
 from lib.runtimes.aws.base import Base
 import re
 
-SERVICE_CALL_PATTERN_TEMPLATE = r"\.\s*{}\((.*)\)" # .VALUE(OUTPUT)
+SERVICE_CALL_PATTERN_TEMPLATE = r"\.\s*{}\((.*?)\)" # .VALUE(OUTPUT)
 
 class NodejsRuntime(Base):
     SERVICE_CALL_PATTERNS = dict(
             (name, re.compile(SERVICE_CALL_PATTERN_TEMPLATE.format(client_name), re.MULTILINE | re.DOTALL))
             for name, client_name in
             (
-                ('sqs', "SQS"),
-                ('s3', "S3"),
-                ('dynamodb', "DynamoDB"),
-                ('sns', "SNS"),
-                ('kinesis', "Kinesis"),
-                ('ses', "SES"),
+                ('s3', r"S3"),
+                ('dynamodb', r"DynamoDB(?:\.DocumentClient)?"),
+                ('sns', r"SNS"),
+                ('kinesis', r"Kinesis"),
+                ('ses', r"SES"),
+                ('kms', r"KMS"),
             ))
 
     # Argument patterns
-    ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*)\s*,?"
+    ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*?)\s*(?:[,}}]|\Z)"
     REGION_PATTERN = re.compile(ARGUMENT_PATTERN_TEMPLATE.format('region'))
     AUTH_PATTERN = re.compile(r"accessKeyId|secretAccessKey|sessionToken|credentials")
 
@@ -55,6 +55,16 @@ class NodejsRuntime(Base):
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'us-east-1': {'default_account': {}}}}
 
+        >>> runtime._permissions.clear()
+        >>> runtime._get_services("filename.js", StringIO('''
+        ... aws.
+        ...     S3({
+        ...         region: 'us-east-1', something: 'else'
+        ...     })
+        ... '''))
+        >>> pprint(normalize_dict(runtime._permissions))
+        {'s3': {'us-east-1': {'default_account': {}}}}
+
         >>> mock.mock(None, 'eprint')
 
         >>> runtime._permissions.clear()
@@ -67,7 +77,7 @@ class NodejsRuntime(Base):
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'*': {'default_account': {}}}}
         >>> mock.calls_for('eprint')
-        'warn: incomprehensive region: {\\n        region: getRegion()\\n    } (in filename.js)'
+        'warn: incomprehensive region: {\\n        region: getRegion( (in filename.js)'
 
         >>> runtime._permissions.clear()
         >>> runtime._get_services("filename.js", StringIO('''

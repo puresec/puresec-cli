@@ -71,7 +71,7 @@ class Mock:
 
         del self.calls[name]
 
-    def open(self, path, mode='r'):
+    def open(self, path, mode='r', errors=None):
         stream = self.opened.get(path)
         if not stream:
             if mode[0] == 'r':

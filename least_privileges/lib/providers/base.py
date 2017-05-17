@@ -11,24 +11,24 @@ class Base:
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
 
-        >>> class Handler(Base):
+        >>> class Provider(Base):
         ...     pass
         >>> from lib.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def get_resource_template(self):
         ...         return "path/to/resource_template"
 
-        >>> Handler("path/to/project", config={})
+        >>> Provider("path/to/project", config={})
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
         'error: must specify either --framework or --resource-template'
 
-        >>> Handler("path/to/project", config={}, resource_template="path/to/resource_template").resource_template
+        >>> Provider("path/to/project", config={}, resource_template="path/to/resource_template").resource_template
         'path/to/resource_template'
-        >>> Handler("path/to/project", config={}, framework=Framework("", {})).resource_template
+        >>> Provider("path/to/project", config={}, framework=Framework("", 'ls', {})).resource_template
         'path/to/resource_template'
-        >>> Handler("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", {})).resource_template
+        >>> Provider("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", 'ls', {})).resource_template
         'path/to/custom_resource_template'
         """
 
@@ -61,7 +61,7 @@ class Base:
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'input', "path/to/function")
 
-        >>> class Handler(Base):
+        >>> class Provider(Base):
         ...     pass
         >>> from lib.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
@@ -73,19 +73,19 @@ class Base:
         ...         return "path/to/{}".format(name) if self.has_function_root else None
 
         >>> config = {}
-        >>> Handler("path/to/project", config=config, framework=Framework(True))._get_function_root('function')
+        >>> Provider("path/to/project", config=config, framework=Framework(True))._get_function_root('function')
         'path/to/function'
         >>> config
         {}
 
         >>> config = {'functions': {'function': {'root': "path/to/function"}}}
-        >>> Handler("path/to/project", config=config, framework=Framework(False))._get_function_root('function')
+        >>> Provider("path/to/project", config=config, framework=Framework(False))._get_function_root('function')
         'path/to/function'
         >>> config
         {'functions': {'function': {'root': 'path/to/function'}}}
 
         >>> config = {'functions': {'function': {'root': "path/to/function"}}}
-        >>> Handler("path/to/project", config=config, resource_template="path/to/resource_template")._get_function_root('function')
+        >>> Provider("path/to/project", config=config, resource_template="path/to/resource_template")._get_function_root('function')
         'path/to/function'
         >>> config
         {'functions': {'function': {'root': 'path/to/function'}}}
@@ -94,13 +94,13 @@ class Base:
         True
 
         >>> config = {}
-        >>> Handler("path/to/project", config=config, framework=Framework(False))._get_function_root('function')
+        >>> Provider("path/to/project", config=config, framework=Framework(False))._get_function_root('function')
         'path/to/function'
         >>> config
         {'functions': {'function': {'root': 'path/to/function'}}}
 
         >>> config = {}
-        >>> Handler("path/to/project", config=config, resource_template="path/to/resource_template")._get_function_root('function')
+        >>> Provider("path/to/project", config=config, resource_template="path/to/resource_template")._get_function_root('function')
         'path/to/function'
         >>> config
         {'functions': {'function': {'root': 'path/to/function'}}}
