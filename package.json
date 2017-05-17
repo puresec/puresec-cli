@@ -1,0 +1,35 @@
+{
+  "name": "least-privileges",
+  "version": "1.0.0",
+  "description": "Least privileges node package.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "Amazon Web Services",
+    "AWS",
+    "Lambda",
+    "Configuration"
+  ],
+  "homepage": "https://github.com/puresec/puresec-least-privilege",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/puresec/puresec-least-privilege.git"
+  },
+  "bugs": {
+    "url": "https://github.com/puresec/puresec-least-privilege/issues"
+  },
+  "author": "Oded Niv <oded.niv@gmail.com>",
+  "license": "MIT",
+  "files": [
+    "least_privileges",
+    "bin"
+  ],
+  "bin": [
+    "bin/lp"
+  ],
+  "scripts": {
+    "lp": "./bin/lp"
+  }
+}
