@@ -16,8 +16,9 @@ def generate_config(path, args):
 
     yield config
 
-    with open(config_path, 'w', errors='replace') as config_file:
-        yaml.dump(config, config_file, default_flow_style=False)
+    if config:
+        with open(config_path, 'w', errors='replace') as config_file:
+            yaml.dump(config, config_file, default_flow_style=False)
 
 @contextmanager
 def generate_framework(path, args, config):

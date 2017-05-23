@@ -3,9 +3,9 @@ from lib.providers.base import Base
 from lib.runtimes import aws as runtimes
 from lib.utils import eprint
 from shutil import which
+import aws_parsecf
 import boto3
 import botocore
-import json
 import os
 import re
 
@@ -39,6 +39,10 @@ class AwsProvider(Base):
 
         super().__init__(path, config, resource_template, framework)
 
+        self._init_session()
+        self._init_default_region()
+        self._init_default_account()
+
         try:
             resource_template = open(self.resource_template, 'r', errors='replace')
         except FileNotFoundError:
@@ -47,14 +51,10 @@ class AwsProvider(Base):
 
         with resource_template:
             try:
-                self.cloudformation_template = json.load(resource_template)
+                self.cloudformation_template = aws_parsecf.load_json(resource_template, default_region=self.default_region)
             except ValueError as e:
                 eprint("error: invalid CloudFormation template:\n{}".format(e))
                 raise SystemExit(-1)
-
-        self._init_session()
-        self._init_default_region()
-        self._init_default_account()
 
     @property
     def permissions(self):

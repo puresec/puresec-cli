@@ -51,7 +51,7 @@ class ServerlessFramework(Base):
             result = process.wait()
             if result != 0:
                 output, _ = process.communicate()
-                eprint("error: serverless package failed:\n{}".format(output.encode()))
+                eprint("error: serverless package failed:\n{}".format(output.decode()))
                 raise SystemExit(result)
 
     @property

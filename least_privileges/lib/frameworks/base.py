@@ -34,7 +34,7 @@ class Base:
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
-        "error: could not find framework executable: 'serverless'"
+        "error: could not find framework executable: 'serverless', try using --framework-path"
 
         >>> mock.mock(None, 'which', "/usr/bin/serverless")
         >>> Framework("path/to/project", 'serverless', {}).executable
@@ -47,7 +47,7 @@ class Base:
 
         executable = which(self.executable)
         if not executable:
-            eprint("error: could not find framework executable: '{}'".format(self.executable))
+            eprint("error: could not find framework executable: '{}', try using --framework-path".format(self.executable))
             raise SystemExit(2)
 
         self.executable = os.path.abspath(executable)

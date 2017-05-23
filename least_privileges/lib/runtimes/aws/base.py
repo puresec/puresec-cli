@@ -92,7 +92,7 @@ class Base(RuntimeBase):
         if not hasattr(self, '_environment_regions'):
             self._environment_regions = set(
                     region for region, pattern in Base.REGION_PATTERNS.items()
-                    if any(pattern.search(value) for value in self.environment.values())
+                    if any(pattern.search(value) for value in self.environment.values() if isinstance(value, str))
                     )
         regions.update(self._environment_regions)
 
@@ -197,7 +197,7 @@ class Base(RuntimeBase):
             self._environment_dynamodb_resources = set(
                     Base.DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)
                     for table, pattern in tables.items()
-                    if any(pattern.search(value) for value in self.environment.values())
+                    if any(pattern.search(value) for value in self.environment.values() if isinstance(value, str))
                     )
         resources.update(self._environment_dynamodb_resources)
 
