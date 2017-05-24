@@ -1,3 +1,4 @@
+import re
 import sys
 
 def eprint(*args, **kwargs):
@@ -74,4 +75,34 @@ def deepmerge(a, b):
             if a[k] != b[k]:
                 raise Exception("Do not know how to merge `{}` with `{}`".format(repr(a[k]), repr(b[k])))
     return a
+
+PARANTHASES_PATTERN = re.compile(r"[\(\)]")
+def get_inner_parentheses(value):
+    """
+    >>> get_inner_parentheses('(hello)')
+    'hello'
+    >>> get_inner_parentheses('(he(l)lo)')
+    'he(l)lo'
+    >>> get_inner_parentheses('(h(e(l)l)o)')
+    'h(e(l)l)o'
+    >>> get_inner_parentheses('he(llo)there')
+    'llo'
+    >>> get_inner_parentheses('(he(llo)')
+    >>> get_inner_parentheses('hello)')
+    >>> get_inner_parentheses(')hel((lo)')
+    """
+    start = None
+    opens = 0
+    for match in PARANTHASES_PATTERN.finditer(value):
+        if match.group() == '(':
+            if start is None:
+                start = match.span()[1]
+            opens += 1
+        elif match.group() == ')':
+            opens -= 1
+            if opens == 0:
+                return value[start:match.span()[0]]
+            elif opens < 0:
+                return None
+    return None
 

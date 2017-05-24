@@ -1,6 +1,7 @@
-from lib.utils import eprint
+from lib.utils import eprint, get_inner_parentheses
 from lib.runtimes.aws.base import Base
-from lib.runtimes.aws.nodejs_api import SERVICE_CALL_PATTERNS, DYNAMODB_ACTION_CALL_PATTERNS
+from lib.runtimes.aws.nodejs_api import SERVICE_CALL_PATTERNS, ACTION_CALL_PATTERNS
+from functools import partial
 import re
 
 class NodejsRuntime(Base):
@@ -9,7 +10,7 @@ class NodejsRuntime(Base):
     # Processors
 
     # Argument patterns
-    ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*?)\s*(?:[,}}]|\Z)"
+    ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*?)\s*(?:[,}}]|\Z)" # "VALUE": OUTPUT, or 'VALUE': OUTPUT} or VALUE: OUTPUT
     REGION_PATTERN = re.compile(ARGUMENT_PATTERN_TEMPLATE.format('region'))
     AUTH_PATTERN = re.compile(r"accessKeyId|secretAccessKey|sessionToken|credentials")
 
@@ -67,7 +68,7 @@ class NodejsRuntime(Base):
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'*': {'default_account': {}}}}
         >>> mock.calls_for('eprint')
-        'warn: incomprehensive region: {\\n        region: getRegion( (in filename.js)'
+        'warn: incomprehensive region: {\\n        region: getRegion()\\n    } (in filename.js)'
 
         >>> runtime._permissions.clear()
         >>> runtime._get_services("filename.js", StringIO('''
@@ -98,9 +99,9 @@ class NodejsRuntime(Base):
             return
 
         content = file.read()
-        for service, pattern in SERVICE_CALL_PATTERNS.items():
+        for service, pattern in SERVICE_CALL_PATTERNS:
             for service_match in pattern.finditer(content):
-                arguments = service_match.group(1)
+                arguments = get_inner_parentheses(service_match.group(1))
                 if arguments:
                     # region
                     region = self._get_variable_from_arguments(arguments, NodejsRuntime.REGION_PATTERN)
@@ -125,54 +126,72 @@ class NodejsRuntime(Base):
                 self._permissions[service][region][account] # accessing to initialize defaultdict
 
     def _get_regions(filename, file, regions, service, account):
-        processor_name = NodejsRuntime.REGIONS_PROCESSOR.get(service)
-        if processor_name:
-            getattr(self, processor_name)(filename, file, regions, account=account)
+        processor = NodejsRuntime.REGIONS_PROCESSOR.get(service)
+        if processor:
+            processor(self)(filename, file, regions, account=account)
         else:
             super()._get_regions(filename, file, regions, service=service, account=account)
 
     REGIONS_PROCESSOR = {
-            # service: function(filename, file, regions, account)
+            # service: lambda self: function(self, filename, file, regions, account)
             }
 
     def _get_resources(self, filename, file, resources, region, account, service):
-        processor_name = NodejsRuntime.SERVICE_RESOURCES_PROCESSOR.get(service)
-        if not processor_name:
+        processor = NodejsRuntime.SERVICE_RESOURCES_PROCESSOR.get(service)
+        if not processor:
             resources['*'] # accessing to initialize defaultdict
             return
-        getattr(self, processor_name)(filename, file, resources, region=region, account=account)
+        processor(self)(filename, file, resources, region=region, account=account)
 
     SERVICE_RESOURCES_PROCESSOR = {
             # service: function(self, filename, file, resources, region, account)
-            'dynamodb': '_get_dynamodb_resources',
+            'dynamodb': lambda self: self._get_dynamodb_resources,
+            's3':       lambda self: self._get_s3_resources,
             }
 
     def _get_actions(self, filename, file, actions, region, account, resource, service):
         if not NodejsRuntime.FILENAME_PATTERN.search(filename):
             return
 
-        processor_name = NodejsRuntime.SERVICE_ACTIONS_PROCESSOR.get(service)
-        if not processor_name:
+        processor = NodejsRuntime.SERVICE_ACTIONS_PROCESSOR.get(service)
+        if not processor:
             actions.add('*')
             return
-        getattr(self, processor_name)(filename, file, actions, region=region, account=account, resource=resource)
+        processor(self)(filename, file, actions, region=region, account=account, resource=resource)
 
     SERVICE_ACTIONS_PROCESSOR = {
             # service: function(self, filename, file, actions, region, account, resource)
-            'dynamodb': '_get_dynamodb_actions',
+            'dynamodb': lambda self: partial(self._get_generic_actions, service='dynamodb'),
+            's3':       lambda self: partial(self._get_generic_actions, service='s3'),
             }
 
     # Helpers
 
-    def _get_dynamodb_actions(self, filename, file, actions, region, account, resource):
+    def _get_generic_actions(self, filename, file, actions, region, account, resource, service):
+        """
+        >>> from io import StringIO
+        >>> from test.utils import normalize_dict
+        >>> runtime = NodejsRuntime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
+
+        >>> runtime._permissions = {'dynamodb': {'us-east-1': {'some-account': {'Table/SomeTable': set()}}}}
+        >>> actions = set()
+        >>> runtime._get_generic_actions("path/to/file.js", StringIO("code .putItem() code"), actions, region='us-east-1', account='some-account', resource='Table/SomeTable', service='dynamodb')
+        >>> runtime._permissions
+        {'dynamodb': {'us-east-1': {'some-account': {'Table/SomeTable': {'dynamodb:PutItem'}}}}}
+
+        >>> runtime._permissions = {'s3': {'us-east-1': {'some-account': {'SomeBucket': set()}}}}
+        >>> actions = set()
+        >>> runtime._get_generic_actions("path/to/file.js", StringIO("code .putObject(params) .getSignedUrl('getObject', params) code"), actions, region='us-east-1', account='some-account', resource='SomeBucket', service='s3')
+        >>> normalize_dict(runtime._permissions)
+        {'s3': {'us-east-1': {'some-account': {'SomeBucket': {'s3:GetObject', 's3:PutObject'}}}}}
+        """
         content = file.read()
-        for action, pattern in DYNAMODB_ACTION_CALL_PATTERNS.items():
+        for action, pattern in ACTION_CALL_PATTERNS[service]:
             if pattern.search(content):
-                self._permissions['dynamodb'][region][account][resource].add(action)
+                self._permissions[service][region][account][resource].add(action)
 
     STRING_PATTERN = re.compile(r"['\"]([\w-]+)['\"]") # 'VALUE' or "VALUE"
     ENV_PATTERN = re.compile(r"process\.env(?:\.|\[['\"])(\w+)(?:['\"]\])?") # process.env.VALUE or process.env['VALUE'] or process.env["VALUE"]
-
     def _get_variable_from_arguments(self, arguments, pattern):
         """ Gets value of an argument within the code
 

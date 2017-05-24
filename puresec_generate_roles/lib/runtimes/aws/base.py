@@ -2,13 +2,14 @@ from collections import defaultdict, namedtuple
 from copy import deepcopy
 from functools import reduce
 from lib.runtimes.base import Base as RuntimeBase
+from lib.runtimes.aws.base_api import BaseApi
 from lib.utils import deepmerge, eprint
 import abc
 import boto3
 import botocore
 import re
 
-class Base(RuntimeBase):
+class Base(RuntimeBase, BaseApi):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, root, config, session, default_region, default_account, environment):
@@ -363,122 +364,4 @@ class Base(RuntimeBase):
         elif '*' in actions:
             actions.clear()
             actions.add('*')
-
-    # { client: { table: table_pattern } }
-    DYNAMODB_TABLES_CACHE = {}
-    DYNAMODB_TABLE_PATTERN = r"\b{}\b"
-    def _get_dynamodb_tables(self, region, account):
-        """
-        >>> from pprint import pprint
-        >>> from test.mock import Mock
-        >>> mock = Mock(__name__)
-
-        >>> class Runtime(Base):
-        ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': ["table-1", "table-2"]}
-        >>> mock.mock(runtime, '_get_client', Client())
-
-        >>> pprint(runtime._get_dynamodb_tables('us-east-1', 'some-account'))
-        {'table-1': re.compile('\\\\btable\\\\-1\\\\b', re.IGNORECASE),
-         'table-2': re.compile('\\\\btable\\\\-2\\\\b', re.IGNORECASE)}
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
-
-        >>> mock.mock(None, 'eprint')
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': []}
-        >>> mock.mock(runtime, '_get_client', Client())
-
-        >>> runtime._get_dynamodb_tables('us-east-1', 'some-account')
-        {}
-        >>> mock.calls_for('eprint')
-        "warn: no tables on DynamoDB on region 'us-east-1'"
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         raise botocore.exceptions.NoCredentialsError()
-        >>> mock.mock(runtime, '_get_client', Client())
-
-        >>> runtime._get_dynamodb_tables('us-east-1', 'some-account')
-        Traceback (most recent call last):
-        SystemExit: -1
-        >>> mock.calls_for('eprint')
-        'error: failed to list table names on DynamoDB:\\nUnable to locate credentials'
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
-        """
-
-        client = self._get_client('dynamodb', region, account)
-        if client is None:
-            eprint("error: cannot create DynamoDB client for region: '{}', account: '{}'".format(region, account))
-            return
-
-        tables = Base.DYNAMODB_TABLES_CACHE.get(client)
-
-        if tables is None:
-            try:
-                tables = client.list_tables()['TableNames']
-            except botocore.exceptions.BotoCoreError as e:
-                eprint("error: failed to list table names on DynamoDB:\n{}".format(e))
-                raise SystemExit(-1)
-            tables = Base.DYNAMODB_TABLES_CACHE[client] = dict(
-                    (table, re.compile(Base.DYNAMODB_TABLE_PATTERN.format(re.escape(table)), re.IGNORECASE))
-                    for table in tables
-                    )
-            if not tables:
-                eprint("warn: no tables on DynamoDB on region '{}'".format(region))
-
-        return tables
-
-    DYNAMODB_TABLE_RESOURCE_FORMAT = "Table/{}"
-    def _get_dynamodb_resources(self, filename, file, resources, region, account):
-        """ Simply greps tables inside the given file.
-
-        >>> from pprint import pprint
-        >>> from io import StringIO
-        >>> from test.utils import normalize_dict
-        >>> from test.mock import Mock
-        >>> mock = Mock(__name__)
-
-        >>> class Runtime(Base):
-        ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account',
-        ...                 environment={ 'var1': "gigi table-1 latable-6", 'var2': "table-2 table-3" })
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': ["table-1", "table-2", "table-3", "table-4", "table-5", "table-6"]}
-        >>> mock.mock(runtime, '_get_client', Client())
-
-        >>> resources = defaultdict(set)
-        >>> runtime._get_dynamodb_resources('filename', StringIO("lalala table-4 lululu table-5 table-6la table-7 nonono"), resources, region='us-east-1', account='some-account')
-        >>> pprint(normalize_dict(resources))
-        {'Table/table-1': set(), 'Table/table-2': set(), 'Table/table-3': set(), 'Table/table-4': set(), 'Table/table-5': set()}
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
-        """
-
-        tables = self._get_dynamodb_tables(region, account)
-        # From file
-        content = file.read()
-        for table, pattern in tables.items():
-            if pattern.search(content):
-                resources[Base.DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)] # accessing to initialize defaultdict
-        # From environment (TODO: once enough for entire lambda)
-        if not hasattr(self, '_environment_dynamodb_resources'):
-            self._environment_dynamodb_resources = [
-                    Base.DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)
-                    for table, pattern in tables.items()
-                    if any(pattern.search(value) for value in self.environment.values() if isinstance(value, str))
-                    ]
-        for resource in self._environment_dynamodb_resources:
-            resources[resource] # accessing to initialize defaultdict
 
