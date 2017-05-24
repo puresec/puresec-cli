@@ -11,8 +11,6 @@ import re
 class Base(RuntimeBase):
     __metaclass__ = abc.ABCMeta
 
-    Permission = namedtuple('Permission', ('service', 'region', 'account', 'resource'))
-
     def __init__(self, root, config, session, default_region, default_account, environment):
         super().__init__(root, config)
         self.session = session
@@ -20,8 +18,8 @@ class Base(RuntimeBase):
         self.default_account = default_account
         self.environment = environment
 
-        # { service: { region: { account: { resource } } } }
-        self._permissions = defaultdict(lambda: defaultdict(lambda: defaultdict(set)))
+        # { service: { region: { account: { resource: {action} } } } }
+        self._permissions = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(set))))
 
     @property
     def permissions(self):
@@ -30,29 +28,32 @@ class Base(RuntimeBase):
         ...     pass
         >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
         >>> runtime._permissions = {
-        ...     'dynamodb': {'us-west-1': {'111': {'Table/a', 'Table/b'}}},
-        ...     'ses': {'*': {'111': {'*'}, '222': {'*'}}},
+        ...     'dynamodb': {'us-west-1': {'111': {'Table/a': {'GetRecords'}, 'Table/b': {'UpdateItem'}}}},
+        ...     'ses': {'*': {'111': {'*': {'*'}}, '222': {'*': {'*'}}}},
         ...     }
 
         >>> sorted(runtime.permissions)
-        ['arn:aws:dynamodb:us-west-1:111:Table/a',
-         'arn:aws:dynamodb:us-west-1:111:Table/b',
-         'arn:aws:ses:*:111:*',
-         'arn:aws:ses:*:222:*']
+        [('arn:aws:dynamodb:us-west-1:111:Table/a', {'GetRecords'}),
+         ('arn:aws:dynamodb:us-west-1:111:Table/b', {'UpdateItem'}),
+         ('arn:aws:ses:*:111:*', {'*'}),
+         ('arn:aws:ses:*:222:*', {'*'})]
         """
 
         permissions = []
         for service, regions in self._permissions.items():
             for region, accounts in regions.items():
                 for account, resources in accounts.items():
-                    for resource in resources:
-                        permissions.append("arn:aws:{}:{}:{}:{}".format(service, region, account, resource))
+                    for resource, actions in resources.items():
+                        permissions.append(("arn:aws:{}:{}:{}:{}".format(service, region, account, resource), actions))
         return permissions
+
+    # Processing (override these)
 
     def process(self):
         self._process_services()
         self._process_regions()
         self._process_resources()
+        self._process_actions()
 
     @abc.abstractmethod
     def _get_services(self, filename, file):
@@ -96,110 +97,15 @@ class Base(RuntimeBase):
                     )
         regions.update(self._environment_regions)
 
-    # resources = set()
+    # resources = defaultdict(set)
     @abc.abstractmethod
-    def _get_resources(self, filename, file, resources, client, service):
+    def _get_resources(self, filename, file, resources, region, account, service):
         pass
 
-    # { client: { table: table_pattern } }
-    DYNAMODB_TABLES_CACHE = {}
-    DYNAMODB_TABLE_PATTERN = r"\b{}\b"
-    def _get_dynamodb_tables(self, client):
-        """
-        >>> from pprint import pprint
-        >>> from test.mock import Mock
-        >>> mock = Mock(__name__)
-
-        >>> class Runtime(Base):
-        ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': ["table-1", "table-2"]}
-
-        >>> pprint(runtime._get_dynamodb_tables(Client()))
-        {'table-1': re.compile('\\\\btable\\\\-1\\\\b', re.IGNORECASE),
-         'table-2': re.compile('\\\\btable\\\\-2\\\\b', re.IGNORECASE)}
-
-        >>> mock.mock(None, 'eprint')
-
-        >>> class Client:
-        ...     class meta:
-        ...         region_name = 'eu-east-1'
-        ...     def list_tables(self):
-        ...         return {'TableNames': []}
-
-        >>> runtime._get_dynamodb_tables(Client())
-        {}
-        >>> mock.calls_for('eprint')
-        "warn: no tables on DynamoDB on region 'eu-east-1'"
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         raise botocore.exceptions.NoCredentialsError()
-
-        >>> runtime._get_dynamodb_tables(Client())
-        Traceback (most recent call last):
-        SystemExit: -1
-        >>> mock.calls_for('eprint')
-        'error: failed to list table names on DynamoDB:\\nUnable to locate credentials'
-        """
-
-        tables = Base.DYNAMODB_TABLES_CACHE.get(client)
-
-        if tables is None:
-            try:
-                tables = client.list_tables()['TableNames']
-            except botocore.exceptions.BotoCoreError as e:
-                eprint("error: failed to list table names on DynamoDB:\n{}".format(e))
-                raise SystemExit(-1)
-            tables = Base.DYNAMODB_TABLES_CACHE[client] = dict(
-                    (table, re.compile(Base.DYNAMODB_TABLE_PATTERN.format(re.escape(table)), re.IGNORECASE))
-                    for table in tables
-                    )
-            if not tables:
-                eprint("warn: no tables on DynamoDB on region '{}'".format(client.meta.region_name))
-
-        return tables
-
-    DYNAMODB_TABLE_RESOURCE_FORMAT = "Table/{}"
-    def _get_dynamodb_resources(self, filename, file, resources, client):
-        """ Simply greps tables inside the given file.
-
-        >>> from io import StringIO
-
-        >>> class Runtime(Base):
-        ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account',
-        ...                 environment={ 'var1': "gigi table-1 latable-6", 'var2': "table-2 table-3" })
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': ["table-1", "table-2", "table-3", "table-4", "table-5", "table-6"]}
-
-        >>> resources = set()
-        >>> runtime._get_dynamodb_resources('filename', StringIO("lalala table-4 lululu table-5 table-6la table-7 nonono"), resources, Client())
-        >>> sorted(resources)
-        ['Table/table-1', 'Table/table-2', 'Table/table-3', 'Table/table-4', 'Table/table-5']
-        """
-
-        tables = self._get_dynamodb_tables(client)
-        # From file
-        content = file.read()
-        resources.update(
-                Base.DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)
-                for table, pattern in tables.items()
-                if pattern.search(content)
-                )
-        # From environment (TODO: once enough for entire lambda)
-        if not hasattr(self, '_environment_dynamodb_resources'):
-            self._environment_dynamodb_resources = set(
-                    Base.DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)
-                    for table, pattern in tables.items()
-                    if any(pattern.search(value) for value in self.environment.values() if isinstance(value, str))
-                    )
-        resources.update(self._environment_dynamodb_resources)
+    # actions = set()
+    @abc.abstractmethod
+    def _get_actions(self, filename, file, actions, region, account, resource, service):
+        pass
 
     # Sub processors
 
@@ -221,16 +127,16 @@ class Base(RuntimeBase):
 
         >>> mock.mock(Base, '_walk', lambda self, processor, possible_regions, service, account: possible_regions.update({'us-east-1', 'us-east-2'}))
         >>> runtime._permissions = {
-        ...     'dynamodb': {'us-west-1': {'111': {'Table/a', 'Table/b'}}},
-        ...     'ses': defaultdict(dict, {'*': {'111': {'*'}, '222': {'*'}}})
+        ...     'dynamodb': {'us-west-1': {'111': {'Table/a': set(), 'Table/b': set()}}},
+        ...     'ses': defaultdict(dict, {'*': {'111': {'*': set()}, '222': {'*': set()}}})
         ...     }
         >>> runtime._process_regions()
         >>> mock.calls_for('Base._walk')
         Runtime, _get_regions, {'us-east-1', 'us-east-2'}, account='111', service='ses'
         Runtime, _get_regions, {'us-east-1', 'us-east-2'}, account='222', service='ses'
         >>> pprint(normalize_dict(runtime._permissions))
-        {'dynamodb': {'us-west-1': {'111': {'Table/a', 'Table/b'}}},
-         'ses': {'us-east-1': {'111': {'*'}, '222': {'*'}}, 'us-east-2': {'111': {'*'}, '222': {'*'}}}}
+        {'dynamodb': {'us-west-1': {'111': {'Table/a': set(), 'Table/b': set()}}},
+         'ses': {'us-east-1': {'111': {'*': set()}, '222': {'*': set()}}, 'us-east-2': {'111': {'*': set()}, '222': {'*': set()}}}}
         """
 
         for service, regions in self._permissions.items():
@@ -258,17 +164,31 @@ class Base(RuntimeBase):
         for service, regions in self._permissions.items():
             for region, accounts in regions.items():
                 for account, resources in accounts.items():
-                    if region == '*' or account == '*':
-                        resources.add('*')
-                        continue
                     self._walk(
                             self._get_resources,
                             # custom arguments to processor
                             resources,
-                            client=self._get_client(service, region, account),
+                            region=region,
+                            account=account,
                             service=service,
                             )
                     self._normalize_resources(resources, (service, region, account))
+
+    def _process_actions(self):
+        for service, regions in self._permissions.items():
+            for region, accounts in regions.items():
+                for account, resources in accounts.items():
+                    for resource, actions in resources.items():
+                        self._walk(
+                                self._get_actions,
+                                # custom arguments to processor
+                                actions,
+                                region=region,
+                                account=account,
+                                service=service,
+                                resource=resource,
+                                )
+                        self._normalize_actions(actions, (service, region, account, resource))
 
     # Helpers
 
@@ -296,15 +216,24 @@ class Base(RuntimeBase):
         >>> mock.calls_for('eprint')
         "warn: unknown account ('*'), using default session"
 
+        >>> class Session:
+        ...     def client(self, *args, **kwargs):
+        ...         return (args, kwargs)
+        >>> mock.mock(boto3, 'Session', Session())
         >>> mock.mock(None, 'input', lambda message: 'dummy')
         >>> pprint(runtime._get_client('dynamodb', 'us-east-1', 'another_account'))
-        (('dynamodb',), {'aws_access_key_id': 'dummy', 'aws_secret_access_key': 'dummy', 'region_name': 'us-east-1'})
+        (('dynamodb',), {'region_name': 'us-east-1'})
+        >>> mock.calls_for('boto3.Session')
+        profile_name='dummy'
         >>> pprint(runtime.config)
-        {'aws': {'accounts': {'another_account': {'access_key_id': 'dummy', 'secret_access_key': 'dummy'}}}}
+        {'aws': {'accounts': {'another_account': {'profile': 'dummy'}}}}
         """
         client = Base.CLIENTS_CACHE.get((service, region, account))
         if client:
             return client # from cache
+
+        if region == '*':
+            return None
 
         if account == '*':
             eprint("warn: unknown account ('*'), using default session")
@@ -319,15 +248,9 @@ class Base(RuntimeBase):
                     )
         else:
             account_config = self.config.setdefault('aws', {}).setdefault('accounts', {}).setdefault(account, {})
-            if not 'access_key_id' in account_config:
-                account_config['access_key_id'] = input("Enter AWS access key id for {}: ".format(account))
-                account_config['secret_access_key'] = input("Enter AWS secret access key for {}: ".format(account))
-            client = self.session.client(
-                    service,
-                    region_name=region,
-                    aws_access_key_id=account_config['access_key_id'],
-                    aws_secret_access_key=account_config['secret_access_key']
-                    )
+            if not 'profile' in account_config:
+                account_config['profile'] = input("Enter configured AWS profile for {}: ".format(account))
+            client = boto3.Session(profile_name=account_config['profile']).client(service, region_name=region)
 
         Base.CLIENTS_CACHE[(service, region, account)] = client
         return client
@@ -361,9 +284,12 @@ class Base(RuntimeBase):
                 self._normalize_permissions(v)
 
     MATCH_ALL_RESOURCES = ('*', '*/*', '*:*')
-    def _normalize_resources(self, resources, parents):
-        """ Convert set to match-all when there's at least one.
 
+    def _normalize_resources(self, resources, parents):
+        """ Convert dict to match-all when there's at least one.
+
+        >>> from pprint import pprint
+        >>> from test.utils import normalize_dict
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
 
@@ -371,33 +297,187 @@ class Base(RuntimeBase):
         ...     pass
         >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
 
-        >>> resources = {'a', 'b', 'c'}
+        >>> resources = {'a': {'x'}, 'b': {'y'}, 'c': {'z'}}
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
-        >>> sorted(resources)
-        ['a', 'b', 'c']
+        >>> pprint(resources)
+        {'a': {'x'}, 'b': {'y'}, 'c': {'z'}}
 
-        >>> resources = {'a', '*/*', 'c'}
+        >>> resources = {'a': {'x'}, '*/*': {'y'}, 'c': {'z'}}
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
-        >>> resources
-        {'*/*'}
+        >>> pprint(normalize_dict(resources))
+        {'*/*': {'x', 'y', 'z'}}
 
         >>> mock.mock(None, 'eprint')
-        >>> resources = set()
+        >>> resources = defaultdict(set)
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
         "warn: unknown permissions for 'dynamodb:us-west-1'"
-        >>> resources
-        {'*'}
-
+        >>> dict(resources)
+        {'*': set()}
         """
 
         if not resources:
-            resources.add('*')
+            resources['*'] # accessing to initialize defaultdict
             eprint("warn: unknown permissions for '{}'".format(':'.join(parents)))
         else:
             for match_all in Base.MATCH_ALL_RESOURCES:
                 if match_all in resources:
+                    merged = set()
+                    merged.update(*resources.values())
                     resources.clear()
-                    resources.add(match_all)
+                    resources[match_all] = merged
                     break
+
+    def _normalize_actions(self, actions, parents):
+        """ Convert set to match-all when there's at least one.
+
+        >>> from pprint import pprint
+        >>> from test.mock import Mock
+        >>> mock = Mock(__name__)
+
+        >>> class Runtime(Base):
+        ...     pass
+        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
+
+        >>> actions = {'a', 'b', 'c'}
+        >>> runtime._normalize_actions(actions, ['dynamodb', 'us-west-1', 'Table/SomeTable'])
+        >>> sorted(actions)
+        ['a', 'b', 'c']
+
+        >>> actions = {'a', '*', 'c'}
+        >>> runtime._normalize_actions(actions, ['dynamodb', 'us-west-1', 'Table/SomeTable'])
+        >>> actions
+        {'*'}
+
+        >>> mock.mock(None, 'eprint')
+        >>> actions = set()
+        >>> runtime._normalize_actions(actions, ['dynamodb', 'us-west-1', 'Table/SomeTable'])
+        >>> mock.calls_for('eprint')
+        "warn: unknown permissions for 'dynamodb:us-west-1:Table/SomeTable'"
+        >>> actions
+        {'*'}
+        """
+        if not actions:
+            actions.add('*')
+            eprint("warn: unknown permissions for '{}'".format(':'.join(parents)))
+        elif '*' in actions:
+            actions.clear()
+            actions.add('*')
+
+    # { client: { table: table_pattern } }
+    DYNAMODB_TABLES_CACHE = {}
+    DYNAMODB_TABLE_PATTERN = r"\b{}\b"
+    def _get_dynamodb_tables(self, region, account):
+        """
+        >>> from pprint import pprint
+        >>> from test.mock import Mock
+        >>> mock = Mock(__name__)
+
+        >>> class Runtime(Base):
+        ...     pass
+        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
+
+        >>> class Client:
+        ...     def list_tables(self):
+        ...         return {'TableNames': ["table-1", "table-2"]}
+        >>> mock.mock(runtime, '_get_client', Client())
+
+        >>> pprint(runtime._get_dynamodb_tables('us-east-1', 'some-account'))
+        {'table-1': re.compile('\\\\btable\\\\-1\\\\b', re.IGNORECASE),
+         'table-2': re.compile('\\\\btable\\\\-2\\\\b', re.IGNORECASE)}
+        >>> mock.calls_for('Runtime._get_client')
+        'dynamodb', 'us-east-1', 'some-account'
+
+        >>> mock.mock(None, 'eprint')
+
+        >>> class Client:
+        ...     def list_tables(self):
+        ...         return {'TableNames': []}
+        >>> mock.mock(runtime, '_get_client', Client())
+
+        >>> runtime._get_dynamodb_tables('us-east-1', 'some-account')
+        {}
+        >>> mock.calls_for('eprint')
+        "warn: no tables on DynamoDB on region 'us-east-1'"
+        >>> mock.calls_for('Runtime._get_client')
+        'dynamodb', 'us-east-1', 'some-account'
+
+        >>> class Client:
+        ...     def list_tables(self):
+        ...         raise botocore.exceptions.NoCredentialsError()
+        >>> mock.mock(runtime, '_get_client', Client())
+
+        >>> runtime._get_dynamodb_tables('us-east-1', 'some-account')
+        Traceback (most recent call last):
+        SystemExit: -1
+        >>> mock.calls_for('eprint')
+        'error: failed to list table names on DynamoDB:\\nUnable to locate credentials'
+        >>> mock.calls_for('Runtime._get_client')
+        'dynamodb', 'us-east-1', 'some-account'
+        """
+
+        client = self._get_client('dynamodb', region, account)
+        if client is None:
+            eprint("error: cannot create DynamoDB client for region: '{}', account: '{}'".format(region, account))
+            return
+
+        tables = Base.DYNAMODB_TABLES_CACHE.get(client)
+
+        if tables is None:
+            try:
+                tables = client.list_tables()['TableNames']
+            except botocore.exceptions.BotoCoreError as e:
+                eprint("error: failed to list table names on DynamoDB:\n{}".format(e))
+                raise SystemExit(-1)
+            tables = Base.DYNAMODB_TABLES_CACHE[client] = dict(
+                    (table, re.compile(Base.DYNAMODB_TABLE_PATTERN.format(re.escape(table)), re.IGNORECASE))
+                    for table in tables
+                    )
+            if not tables:
+                eprint("warn: no tables on DynamoDB on region '{}'".format(region))
+
+        return tables
+
+    DYNAMODB_TABLE_RESOURCE_FORMAT = "Table/{}"
+    def _get_dynamodb_resources(self, filename, file, resources, region, account):
+        """ Simply greps tables inside the given file.
+
+        >>> from pprint import pprint
+        >>> from io import StringIO
+        >>> from test.mock import Mock
+        >>> mock = Mock(__name__)
+
+        >>> class Runtime(Base):
+        ...     pass
+        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account',
+        ...                 environment={ 'var1': "gigi table-1 latable-6", 'var2': "table-2 table-3" })
+
+        >>> class Client:
+        ...     def list_tables(self):
+        ...         return {'TableNames': ["table-1", "table-2", "table-3", "table-4", "table-5", "table-6"]}
+        >>> mock.mock(runtime, '_get_client', Client())
+
+        >>> resources = defaultdict(set)
+        >>> runtime._get_dynamodb_resources('filename', StringIO("lalala table-4 lululu table-5 table-6la table-7 nonono"), resources, region='us-east-1', account='some-account')
+        >>> pprint(resources)
+        {'Table/table-1': set(), 'Table/table-2': set(), 'Table/table-3': set(), 'Table/table-4': set(), 'Table/table-5': set()}
+        >>> mock.calls_for('Runtime._get_client')
+        'dynamodb', 'us-east-1', 'some-account'
+        """
+
+        tables = self._get_dynamodb_tables(region, account)
+        # From file
+        content = file.read()
+        for table, pattern in tables.items():
+            if pattern.search(content):
+                resources[Base.DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)] # accessing to initialize defaultdict
+        # From environment (TODO: once enough for entire lambda)
+        if not hasattr(self, '_environment_dynamodb_resources'):
+            self._environment_dynamodb_resources = [
+                    Base.DYNAMODB_TABLE_RESOURCE_FORMAT.format(table)
+                    for table, pattern in tables.items()
+                    if any(pattern.search(value) for value in self.environment.values() if isinstance(value, str))
+                    ]
+        for resource in self._environment_dynamodb_resources:
+            resources[resource] # accessing to initialize defaultdict
 

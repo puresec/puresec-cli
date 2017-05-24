@@ -2,6 +2,8 @@ from collections import defaultdict
 
 class PrettySet(set):
     def __repr__(self):
+        if not self:
+            return "set()"
         return "{{{}}}".format(', '.join(map(repr, sorted(self))))
 
 def normalize_dict(obj):

@@ -1,28 +1,18 @@
 from lib.utils import eprint
 from lib.runtimes.aws.base import Base
+from lib.runtimes.aws.nodejs_api import SERVICE_CALL_PATTERNS, DYNAMODB_ACTION_CALL_PATTERNS
 import re
 
-SERVICE_CALL_PATTERN_TEMPLATE = r"\.\s*{}\((.*?)\)" # .VALUE(OUTPUT)
-
 class NodejsRuntime(Base):
-    SERVICE_CALL_PATTERNS = dict(
-            (name, re.compile(SERVICE_CALL_PATTERN_TEMPLATE.format(client_name), re.MULTILINE | re.DOTALL))
-            for name, client_name in
-            (
-                ('s3', r"S3"),
-                ('dynamodb', r"DynamoDB(?:\.DocumentClient)?"),
-                ('sns', r"SNS"),
-                ('kinesis', r"Kinesis"),
-                ('ses', r"SES"),
-                ('kms', r"KMS"),
-            ))
+    FILENAME_PATTERN = re.compile(r"\.js$", re.IGNORECASE)
+
+    # Processors
 
     # Argument patterns
     ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*?)\s*(?:[,}}]|\Z)"
     REGION_PATTERN = re.compile(ARGUMENT_PATTERN_TEMPLATE.format('region'))
     AUTH_PATTERN = re.compile(r"accessKeyId|secretAccessKey|sessionToken|credentials")
 
-    FILENAME_PATTERN = re.compile(r"\.js$", re.IGNORECASE)
     def _get_services(self, filename, file):
         """
         >>> from io import StringIO
@@ -108,7 +98,7 @@ class NodejsRuntime(Base):
             return
 
         content = file.read()
-        for service, pattern in NodejsRuntime.SERVICE_CALL_PATTERNS.items():
+        for service, pattern in SERVICE_CALL_PATTERNS.items():
             for service_match in pattern.finditer(content):
                 arguments = service_match.group(1)
                 if arguments:
@@ -145,17 +135,40 @@ class NodejsRuntime(Base):
             # service: function(filename, file, regions, account)
             }
 
-    def _get_resources(self, filename, file, resources, client, service):
+    def _get_resources(self, filename, file, resources, region, account, service):
         processor_name = NodejsRuntime.SERVICE_RESOURCES_PROCESSOR.get(service)
         if not processor_name:
-            resources.add('*')
+            resources['*'] # accessing to initialize defaultdict
             return
-        getattr(self, processor_name)(filename, file, resources, client=client)
+        getattr(self, processor_name)(filename, file, resources, region=region, account=account)
 
     SERVICE_RESOURCES_PROCESSOR = {
-            # service: function(filename, file, resources, client)
+            # service: function(self, filename, file, resources, region, account)
             'dynamodb': '_get_dynamodb_resources',
             }
+
+    def _get_actions(self, filename, file, actions, region, account, resource, service):
+        if not NodejsRuntime.FILENAME_PATTERN.search(filename):
+            return
+
+        processor_name = NodejsRuntime.SERVICE_ACTIONS_PROCESSOR.get(service)
+        if not processor_name:
+            actions.add('*')
+            return
+        getattr(self, processor_name)(filename, file, actions, region=region, account=account, resource=resource)
+
+    SERVICE_ACTIONS_PROCESSOR = {
+            # service: function(self, filename, file, actions, region, account, resource)
+            'dynamodb': '_get_dynamodb_actions',
+            }
+
+    # Helpers
+
+    def _get_dynamodb_actions(self, filename, file, actions, region, account, resource):
+        content = file.read()
+        for action, pattern in DYNAMODB_ACTION_CALL_PATTERNS.items():
+            if pattern.search(content):
+                self._permissions['dynamodb'][region][account][resource].add(action)
 
     STRING_PATTERN = re.compile(r"['\"]([\w-]+)['\"]") # 'VALUE' or "VALUE"
     ENV_PATTERN = re.compile(r"process\.env(?:\.|\[['\"])(\w+)(?:['\"]\])?") # process.env.VALUE or process.env['VALUE'] or process.env["VALUE"]
