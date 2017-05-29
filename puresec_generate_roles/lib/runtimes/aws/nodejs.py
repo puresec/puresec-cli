@@ -143,12 +143,6 @@ class NodejsRuntime(Base):
             return
         processor(self)(filename, file, resources, region=region, account=account)
 
-    SERVICE_RESOURCES_PROCESSOR = {
-            # service: function(self, filename, file, resources, region, account)
-            'dynamodb': lambda self: self._get_dynamodb_resources,
-            's3':       lambda self: self._get_s3_resources,
-            }
-
     def _get_actions(self, filename, file, actions, region, account, resource, service):
         if not NodejsRuntime.FILENAME_PATTERN.search(filename):
             return
@@ -162,6 +156,7 @@ class NodejsRuntime(Base):
     SERVICE_ACTIONS_PROCESSOR = {
             # service: function(self, filename, file, actions, region, account, resource)
             'dynamodb': lambda self: partial(self._get_generic_actions, service='dynamodb'),
+            'kinesis':  lambda self: partial(self._get_generic_actions, service='kinesis'),
             's3':       lambda self: partial(self._get_generic_actions, service='s3'),
             }
 

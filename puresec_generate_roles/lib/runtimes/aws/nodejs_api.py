@@ -21,8 +21,11 @@ S3_SIGNED_URL_PATTERN = r"(?:(?:{0})|(?:\.\s*getSignedUrl\(\s*['\"]{{0}}['\"](.*
 ACTION_CALL_PATTERNS = {
         'dynamodb': tuple(
             chain((
-                # "batchGetItem" -> "dynamodb:BatchGetItem"
-                ("dynamodb:{}{}".format(method[0].capitalize(), method[1:]), re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL))
+                (
+                    # "batchGetItem" -> "dynamodb:BatchGetItem"
+                    "dynamodb:{}{}".format(method[0].capitalize(), method[1:]),
+                    re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
+                )
                 for method in (
                     'batchGetItem', 'batchWriteItem', 'createTable', 'deleteItem', 'deleteTable',
                     'describeLimits', 'describeTable', 'describeTimeToLive', 'getItem', 'listTables',
@@ -45,10 +48,26 @@ ACTION_CALL_PATTERNS = {
                 ),
             )
         ),
+        'kinesis': tuple(
+            (
+                # "batchGetItem" -> "kinesis:BatchGetItem"
+                "kinesis:{}{}".format(method[0].capitalize(), method[1:]),
+                re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
+            )
+            for method in (
+                'addTagsToStream', 'createStream', 'decreaseStreamRetentionPeriod', 'deleteStream', 'describeLimits',
+                'describeStream', 'disableEnhancedMonitoring', 'enableEnhancedMonitoring', 'getRecords', 'getShardIterator',
+                'increaseStreamRetentionPeriod', 'listStreams', 'listTagsForStream', 'mergeShards', 'putRecord',
+                'putRecords', 'removeTagsFromStream', 'splitShard', 'updateShardCount',
+                )
+        ),
         's3': tuple(
             chain((
-                # "batchGetItem" -> "dynamodb:BatchGetItem"
-                ("s3:{}{}".format(method[0].capitalize(), method[1:]), re.compile(S3_SIGNED_URL_PATTERN.format(method, method), re.MULTILINE | re.DOTALL))
+                (
+                    # "batchGetItem" -> "dynamodb:BatchGetItem"
+                    "s3:{}{}".format(method[0].capitalize(), method[1:]),
+                    re.compile(S3_SIGNED_URL_PATTERN.format(method, method), re.MULTILINE | re.DOTALL)
+                )
                 for method in (
                     'abortMultipartUpload', 'createBucket', 'deleteBucket', 'deleteBucketPolicy', 'deleteBucketWebsite',
                     'deleteObject', 'deleteObjectTagging', 'getBucketAcl', 'getBucketLocation', 'getBucketLogging',
