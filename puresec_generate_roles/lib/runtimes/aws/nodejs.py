@@ -9,11 +9,25 @@ class NodejsRuntime(Base):
 
     # Processors
 
+    SERVICE_REGIONS_PROCESSOR = {
+            # service: lambda self: function(self, filename, file, regions, account)
+            }
+
+    SERVICE_ACTIONS_PROCESSOR = {
+            # service: function(self, filename, file, actions, region, account, resource)
+            'dynamodb': lambda self: partial(self._get_generic_actions, service='dynamodb'),
+            'kinesis':  lambda self: partial(self._get_generic_actions, service='kinesis'),
+            'kms':      lambda self: partial(self._get_generic_actions, service='kms'),
+            's3':       lambda self: partial(self._get_generic_actions, service='s3'),
+            'ses':      lambda self: partial(self._get_generic_actions, service='ses'),
+            'sns':      lambda self: partial(self._get_generic_actions, service='sns'),
+            'states':   lambda self: partial(self._get_generic_actions, service='states'),
+            }
+
     # Argument patterns
     ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*?)\s*(?:[,}}]|\Z)" # "VALUE": OUTPUT, or 'VALUE': OUTPUT} or VALUE: OUTPUT
     REGION_PATTERN = re.compile(ARGUMENT_PATTERN_TEMPLATE.format('region'))
     AUTH_PATTERN = re.compile(r"accessKeyId|secretAccessKey|sessionToken|credentials")
-
     def _get_services(self, filename, file):
         """
         >>> from io import StringIO
@@ -126,15 +140,11 @@ class NodejsRuntime(Base):
                 self._permissions[service][region][account] # accessing to initialize defaultdict
 
     def _get_regions(filename, file, regions, service, account):
-        processor = NodejsRuntime.REGIONS_PROCESSOR.get(service)
+        processor = NodejsRuntime.SERVICE_REGIONS_PROCESSOR.get(service)
         if processor:
             processor(self)(filename, file, regions, account=account)
         else:
             super()._get_regions(filename, file, regions, service=service, account=account)
-
-    REGIONS_PROCESSOR = {
-            # service: lambda self: function(self, filename, file, regions, account)
-            }
 
     def _get_resources(self, filename, file, resources, region, account, service):
         processor = NodejsRuntime.SERVICE_RESOURCES_PROCESSOR.get(service)
@@ -152,13 +162,6 @@ class NodejsRuntime(Base):
             actions.add('*')
             return
         processor(self)(filename, file, actions, region=region, account=account, resource=resource)
-
-    SERVICE_ACTIONS_PROCESSOR = {
-            # service: function(self, filename, file, actions, region, account, resource)
-            'dynamodb': lambda self: partial(self._get_generic_actions, service='dynamodb'),
-            'kinesis':  lambda self: partial(self._get_generic_actions, service='kinesis'),
-            's3':       lambda self: partial(self._get_generic_actions, service='s3'),
-            }
 
     # Helpers
 

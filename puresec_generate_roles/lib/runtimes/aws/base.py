@@ -7,6 +7,7 @@ from lib.utils import deepmerge, eprint
 import abc
 import boto3
 import botocore
+import fnmatch
 import re
 
 class Base(RuntimeBase, BaseApi):
@@ -284,8 +285,6 @@ class Base(RuntimeBase, BaseApi):
             if isinstance(v, dict):
                 self._normalize_permissions(v)
 
-    MATCH_ALL_RESOURCES = ('*', '*/*', '*:*')
-
     def _normalize_resources(self, resources, parents):
         """ Convert dict to match-all when there's at least one.
 
@@ -303,12 +302,18 @@ class Base(RuntimeBase, BaseApi):
         >>> pprint(resources)
         {'a': {'x'}, 'b': {'y'}, 'c': {'z'}}
 
-        >>> resources = {'a': {'x'}, '*/*': {'y'}, 'c': {'z'}}
+        >>> resources = {'a': {'x'}, '*': {'y'}, 'c': {'z'}}
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
         >>> pprint(normalize_dict(resources))
-        {'*/*': {'x', 'y', 'z'}}
+        {'*': {'x', 'y', 'z'}}
+
+        >>> resources = {'activity/b': {'z'}, 'execution/*': {'*'}, 'stateMachine/a': {'x'}, 'stateMachine/*': {'y'}}
+        >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
+        >>> pprint(normalize_dict(resources))
+        {'activity/b': {'z'}, 'execution/*': {'*'}, 'stateMachine/*': {'x', 'y'}}
 
         >>> mock.mock(None, 'eprint')
+
         >>> resources = defaultdict(set)
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
@@ -321,13 +326,24 @@ class Base(RuntimeBase, BaseApi):
             resources['*'] # accessing to initialize defaultdict
             eprint("warn: unknown permissions for '{}'".format(':'.join(parents)))
         else:
-            for match_all in Base.MATCH_ALL_RESOURCES:
-                if match_all in resources:
-                    merged = set()
-                    merged.update(*resources.values())
-                    resources.clear()
-                    resources[match_all] = merged
-                    break
+            # mapping all resources wildcard matching to others
+            wildcard_matches = {}
+            for resource in resources.keys():
+                if '*' in resource or '?' in resource:
+                    matches = fnmatch.filter(resources.keys(), resource)
+                    if len(matches) > 1: # not just self
+                        wildcard_matches[resource] = matches
+
+            for wildcard, matches in wildcard_matches.items():
+                if wildcard not in resources:
+                    continue # processed by another resource
+                merged = set()
+                for resource in matches:
+                    if resource not in resources:
+                        continue # processed by another resource
+                    merged.update(resources[resource])
+                    del resources[resource]
+                resources[wildcard] = merged
 
     def _normalize_actions(self, actions, parents):
         """ Convert set to match-all when there's at least one.
