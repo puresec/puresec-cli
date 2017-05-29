@@ -56,6 +56,7 @@ class Base(RuntimeBase, BaseApi):
         self._process_regions()
         self._process_resources()
         self._process_actions()
+        self._cleanup()
 
     @abc.abstractmethod
     def _get_services(self, filename, file):
@@ -192,70 +193,50 @@ class Base(RuntimeBase, BaseApi):
                                 )
                         self._normalize_actions(actions, (service, region, account, resource))
 
-    # Helpers
+    def _cleanup(self):
+        """ Merges region-less services and resource-less actions.
 
-    # { (service, region, account): client }
-    CLIENTS_CACHE = {}
-    def _get_client(self, service, region, account):
-        """
         >>> from pprint import pprint
-        >>> from test.mock import Mock
-        >>> mock = Mock(__name__)
+        >>> from test.utils import normalize_dict
 
-        >>> class Session:
-        ...     def client(self, *args, **kwargs):
-        ...         return (args, kwargs)
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, session=Session(), default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
 
-        >>> pprint(runtime._get_client('dynamodb', 'us-east-1', 'default_account'))
-        (('dynamodb',), {'region_name': 'us-east-1'})
-
-        >>> mock.mock(None, 'eprint')
-        >>> pprint(runtime._get_client('dynamodb', 'us-east-1', '*'))
-        (('dynamodb',), {'region_name': 'us-east-1'})
-        >>> mock.calls_for('eprint')
-        "warn: unknown account ('*'), using default session"
-
-        >>> class Session:
-        ...     def client(self, *args, **kwargs):
-        ...         return (args, kwargs)
-        >>> mock.mock(boto3, 'Session', Session())
-        >>> mock.mock(None, 'input', lambda message: 'dummy')
-        >>> pprint(runtime._get_client('dynamodb', 'us-east-1', 'another_account'))
-        (('dynamodb',), {'region_name': 'us-east-1'})
-        >>> mock.calls_for('boto3.Session')
-        profile_name='dummy'
-        >>> pprint(runtime.config)
-        {'aws': {'accounts': {'another_account': {'profile': 'dummy'}}}}
+        >>> runtime._permissions = {
+        ...     'dynamodb': {'us-west-1': {'111': {'Table/a': {'dynamodb:GetItem'}}}},
+        ...     's3': defaultdict(dict, {'us-east-1': {'some-account': {'somebucket': {'s3:CreateBucket'}}}, 'us-west-1': {'another-account': {'anotherbucket': {'s3:ListObjects'}}}})
+        ...     }
+        >>> runtime._cleanup()
+        >>> pprint(normalize_dict(runtime._permissions))
+        {'dynamodb': {'us-west-1': {'111': {'Table/a': {'dynamodb:GetItem'}}}},
+         's3': {'': {'another-account': {'anotherbucket': {'s3:ListObjects'}}, 'some-account': {'*': {'s3:CreateBucket'}}}}}
         """
-        client = Base.CLIENTS_CACHE.get((service, region, account))
-        if client:
-            return client # from cache
+        # Region-less services
+        for service in Base.REGIONLESS_SERVICES:
+            if service not in self._permissions:
+                continue
+            merged = reduce(deepmerge, self._permissions[service].values())
+            self._permissions[service].clear()
+            self._permissions[service][''] = merged
 
-        if region == '*':
-            return None
+        for service, resourceless_actions in Base.SERVICE_RESOURCELESS_ACTIONS.items():
+            if service not in self._permissions:
+                continue
+            for region, accounts in self._permissions[service].items():
+                for account, resources in accounts.items():
+                    found_actions = set()
+                    for resource, actions in tuple(resources.items()):
+                        for action in resourceless_actions:
+                            if action in actions:
+                                found_actions.add(action)
+                                actions.remove(action)
+                        if not actions:
+                            del resources[resource]
+                    if found_actions:
+                        resources['*'] = found_actions
 
-        if account == '*':
-            eprint("warn: unknown account ('*'), using default session")
-            client = self.session.client(
-                    service,
-                    region_name=region
-                    )
-        elif account == self.default_account:
-            client = self.session.client(
-                    service,
-                    region_name=region
-                    )
-        else:
-            account_config = self.config.setdefault('aws', {}).setdefault('accounts', {}).setdefault(account, {})
-            if not 'profile' in account_config:
-                account_config['profile'] = input("Enter configured AWS profile for {}: ".format(account))
-            client = boto3.Session(profile_name=account_config['profile']).client(service, region_name=region)
-
-        Base.CLIENTS_CACHE[(service, region, account)] = client
-        return client
+    # Helpers
 
     def _normalize_permissions(self, tree):
         """ Merge trees when one of the keys have '*' permission.
