@@ -51,6 +51,10 @@ class Base:
     def __exit__(self, type, value, traceback):
         pass
 
+    @property
+    def format(self):
+        pass
+
     @abc.abstractmethod
     def process(self):
         pass

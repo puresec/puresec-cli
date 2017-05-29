@@ -58,6 +58,9 @@ class Base:
     def __exit__(self, type, value, traceback):
         pass
 
+    def get_format(self):
+        pass
+
     def get_provider_name(self):
         pass
 

@@ -2,7 +2,6 @@ from importlib import import_module
 from lib.providers.base import Base
 from lib.runtimes import aws as runtimes
 from lib.utils import eprint
-from shutil import which
 import aws_parsecf
 import boto3
 import botocore
@@ -57,14 +56,66 @@ class AwsProvider(Base):
                 raise SystemExit(-1)
 
     @property
-    def permissions(self):
-        permissions = {}
-        # functions
-        permissions.update(
-                (name, runtime.permissions)
-                for name, runtime in self._function_runtimes.items()
-                )
-        return permissions
+    def format(self):
+        return 'json'
+
+    @property
+    def output(self):
+        resources = {}
+        for name, runtime in self._function_runtimes.items():
+            real_name = self._function_real_names[name]
+
+            role = resources["{}Role".format(name)] = {
+                    'Type': 'AWS:IAM:Role',
+                    'Properties': {
+                        'Path': '/',
+                        'RoleName': real_name,
+                        'AssumeRolePolicyDocument': {
+                            'Version': '2012-10-17',
+                            'Statement': [
+                                {
+                                    'Effect': 'Allow',
+                                    'Action': 'sts:AssumeRole',
+                                    'Principal': {'Service': 'lambda.amazonaws.com'},
+                                    }
+                                ]
+                            }
+                        }
+                    }
+
+            policies = role['Properties']['Policies'] = [{
+                'PolicyName': "CreateAndWriteToLogStream",
+                'PolicyDocument': {
+                    'Version': '2012-10-17',
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'logs:CreateLogStream',
+                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*".format(self.default_region, self.default_account, real_name),
+                            },
+                        {
+                            'Effect': 'Allow',
+                            'Action': 'logs:PutLogEvents',
+                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*:*".format(self.default_region, self.default_account, real_name),
+                            },
+                        ]
+                    }
+                }]
+            permissions = runtime.permissions
+            if permissions:
+                policies.append({
+                    'PolicyName': 'PureSecGeneratedRoles',
+                    'PolicyDocument': {
+                        'Version': '2012-10-17',
+                        'Statement': [
+                            {'Effect': 'Allow', 'Action': list(actions), 'Resource': resource}
+                            for resource, actions in permissions
+                            ]
+                        }
+                    })
+
+        if resources:
+            return {'Resources': resources}
 
     def _init_session(self):
         """
@@ -299,16 +350,21 @@ class AwsProvider(Base):
         >>> handler._function_runtimes['functionName'].processed
         True
         """
+        self._function_real_names = {}
         self._function_runtimes = {}
         for resource_id, resource_config in self.cloudformation_template.get('Resources', {}).items():
             if resource_config['Type'] == 'AWS::Lambda::Function':
                 # Getting name
-                name = resource_config.get('Properties', {}).get('FunctionName')
-                if not name:
+                real_name = resource_config.get('Properties', {}).get('FunctionName')
+                if not real_name:
                     eprint("error: lambda name not specified at `{}`".format(resource_id))
                     raise SystemExit(2)
                 if self.framework:
-                    name = self.framework.get_function_name(name)
+                    name = self.framework.get_function_name(real_name)
+                else:
+                    name = real_name
+                self._function_real_names[name] = real_name
+
                 root = os.path.join(self.path, self._get_function_root(name))
                 # Getting runtime
                 runtime = resource_config.get('Properties', {}).get('Runtime')

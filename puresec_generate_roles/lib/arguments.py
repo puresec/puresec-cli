@@ -21,3 +21,6 @@ parser.add_argument('--framework', '-f', choices=frameworks.__all__,
 parser.add_argument('--framework-path', '-e',
                     help="Path to the framework's executable, usually not needed.")
 
+parser.add_argument('--format', choices=['json', 'yaml'],
+                    help="Wanted output format, defaults to framework/provider guesswork")
+

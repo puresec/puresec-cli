@@ -1,8 +1,11 @@
 from contextlib import contextmanager
+from functools import partial
 from importlib import import_module
 from lib import arguments, providers
 from lib.utils import eprint
+import json
 import os
+import sys
 import yaml
 
 @contextmanager
@@ -55,6 +58,11 @@ def generate_provider(path, args, framework, config):
     with import_module("lib.providers.{}".format(provider)).Provider(path, resource_template=args.resource_template, framework=framework, config=config) as provider:
         yield provider
 
+DUMPERS = {
+        'json': partial(json.dumps, indent=2),
+        'yaml': partial(yaml.dump, default_flow_style=False),
+        }
+
 def main(argv=None):
     args = arguments.parser.parse_args(argv)
 
@@ -65,10 +73,9 @@ def main(argv=None):
             with generate_framework(path, args, config) as framework:
                 with generate_provider(path, args, framework, config) as provider:
                     provider.process()
-                    # TODO: output
-                    from pprint import pprint
-                    pprint(provider.permissions)
-                    print()
+
+                    output_format = args.format or (framework and framework.format) or provider.format or 'json'
+                    print(DUMPERS[output_format](provider.output))
 
 if __name__ == '__main__':
     main()

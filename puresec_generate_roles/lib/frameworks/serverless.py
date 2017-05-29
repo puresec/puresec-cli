@@ -108,6 +108,11 @@ class ServerlessFramework(Base):
 
         return self._serverless_config_cache
 
+    @property
+    def format(self):
+        return 'yaml'
+        pass
+
     def get_provider_name(self):
         return self._serverless_config['service']['provider']['name']
 
