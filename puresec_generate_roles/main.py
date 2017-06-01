@@ -7,7 +7,7 @@ import yaml
 
 @contextmanager
 def generate_config(path, args):
-    config_path = os.path.join(path, "least-privileges.yml")
+    config_path = os.path.join(path, "puresec-generate-roles.yml")
     if os.path.isfile(config_path):
         with open(config_path, 'r', errors='replace') as config_file:
             config = yaml.load(config_file)
