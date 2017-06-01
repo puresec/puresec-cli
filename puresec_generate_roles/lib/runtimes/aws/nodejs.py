@@ -1,27 +1,15 @@
 from lib.utils import eprint, get_inner_parentheses
 from lib.runtimes.aws.base import Base
-from lib.runtimes.aws.nodejs_api import SERVICE_CALL_PATTERNS, ACTION_CALL_PATTERNS
-from functools import partial
+from lib.runtimes.aws.nodejs_api import NodejsApi
 import re
 
-class NodejsRuntime(Base):
+class NodejsRuntime(Base, NodejsApi):
     FILENAME_PATTERN = re.compile(r"\.js$", re.IGNORECASE)
 
     # Processors
 
     SERVICE_REGIONS_PROCESSOR = {
             # service: lambda self: function(self, filename, file, regions, account)
-            }
-
-    SERVICE_ACTIONS_PROCESSOR = {
-            # service: function(self, filename, file, actions, region, account, resource)
-            'dynamodb': lambda self: partial(self._get_generic_actions, service='dynamodb'),
-            'kinesis':  lambda self: partial(self._get_generic_actions, service='kinesis'),
-            'kms':      lambda self: partial(self._get_generic_actions, service='kms'),
-            's3':       lambda self: partial(self._get_generic_actions, service='s3'),
-            'ses':      lambda self: partial(self._get_generic_actions, service='ses'),
-            'sns':      lambda self: partial(self._get_generic_actions, service='sns'),
-            'states':   lambda self: partial(self._get_generic_actions, service='states'),
             }
 
     # Argument patterns
@@ -113,7 +101,7 @@ class NodejsRuntime(Base):
             return
 
         content = file.read()
-        for service, pattern in SERVICE_CALL_PATTERNS:
+        for service, pattern in NodejsApi.SERVICE_CALL_PATTERNS:
             for service_match in pattern.finditer(content):
                 arguments = get_inner_parentheses(service_match.group(1))
                 if arguments:
@@ -153,40 +141,17 @@ class NodejsRuntime(Base):
             return
         processor(self)(filename, file, resources, region=region, account=account)
 
-    def _get_actions(self, filename, file, actions, region, account, resource, service):
+    def _get_actions(self, filename, file, actions, service):
         if not NodejsRuntime.FILENAME_PATTERN.search(filename):
             return
 
-        processor = NodejsRuntime.SERVICE_ACTIONS_PROCESSOR.get(service)
+        processor = NodejsApi.SERVICE_ACTIONS_PROCESSOR.get(service)
         if not processor:
             actions.add('*')
             return
-        processor(self)(filename, file, actions, region=region, account=account, resource=resource)
+        processor(self)(filename, file, actions)
 
     # Helpers
-
-    def _get_generic_actions(self, filename, file, actions, region, account, resource, service):
-        """
-        >>> from io import StringIO
-        >>> from test.utils import normalize_dict
-        >>> runtime = NodejsRuntime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
-
-        >>> runtime._permissions = {'dynamodb': {'us-east-1': {'some-account': {'Table/SomeTable': set()}}}}
-        >>> actions = set()
-        >>> runtime._get_generic_actions("path/to/file.js", StringIO("code .putItem() code"), actions, region='us-east-1', account='some-account', resource='Table/SomeTable', service='dynamodb')
-        >>> runtime._permissions
-        {'dynamodb': {'us-east-1': {'some-account': {'Table/SomeTable': {'dynamodb:PutItem'}}}}}
-
-        >>> runtime._permissions = {'s3': {'us-east-1': {'some-account': {'SomeBucket': set()}}}}
-        >>> actions = set()
-        >>> runtime._get_generic_actions("path/to/file.js", StringIO("code .putObject(params) .getSignedUrl('getObject', params) code"), actions, region='us-east-1', account='some-account', resource='SomeBucket', service='s3')
-        >>> normalize_dict(runtime._permissions)
-        {'s3': {'us-east-1': {'some-account': {'SomeBucket': {'s3:GetObject', 's3:PutObject'}}}}}
-        """
-        content = file.read()
-        for action, pattern in ACTION_CALL_PATTERNS[service]:
-            if pattern.search(content):
-                self._permissions[service][region][account][resource].add(action)
 
     STRING_PATTERN = re.compile(r"['\"]([\w-]+)['\"]") # 'VALUE' or "VALUE"
     ENV_PATTERN = re.compile(r"process\.env(?:\.|\[['\"])(\w+)(?:['\"]\])?") # process.env.VALUE or process.env['VALUE'] or process.env["VALUE"]

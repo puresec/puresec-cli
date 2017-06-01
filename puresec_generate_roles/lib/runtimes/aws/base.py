@@ -30,13 +30,13 @@ class Base(RuntimeBase, BaseApi):
         ...     pass
         >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
         >>> runtime._permissions = {
-        ...     'dynamodb': {'us-west-1': {'111': {'Table/a': {'GetRecords'}, 'Table/b': {'UpdateItem'}}}},
+        ...     'dynamodb': {'us-west-1': {'111': {'table/a': {'GetRecords'}, 'table/b': {'UpdateItem'}}}},
         ...     'ses': {'*': {'111': {'*': {'*'}}, '222': {'*': {'*'}}}},
         ...     }
 
         >>> sorted(runtime.permissions)
-        [('arn:aws:dynamodb:us-west-1:111:Table/a', {'GetRecords'}),
-         ('arn:aws:dynamodb:us-west-1:111:Table/b', {'UpdateItem'}),
+        [('arn:aws:dynamodb:us-west-1:111:table/a', {'GetRecords'}),
+         ('arn:aws:dynamodb:us-west-1:111:table/b', {'UpdateItem'}),
          ('arn:aws:ses:*:111:*', {'*'}),
          ('arn:aws:ses:*:222:*', {'*'})]
         """
@@ -107,7 +107,7 @@ class Base(RuntimeBase, BaseApi):
 
     # actions = set()
     @abc.abstractmethod
-    def _get_actions(self, filename, file, actions, region, account, resource, service):
+    def _get_actions(self, filename, file, actions, service):
         pass
 
     # Sub processors
@@ -130,7 +130,7 @@ class Base(RuntimeBase, BaseApi):
 
         >>> mock.mock(Base, '_walk', lambda self, processor, possible_regions, service, account: possible_regions.update({'us-east-1', 'us-east-2'}))
         >>> runtime._permissions = {
-        ...     'dynamodb': {'us-west-1': {'111': {'Table/a': set(), 'Table/b': set()}}},
+        ...     'dynamodb': {'us-west-1': {'111': {'table/a': set(), 'table/b': set()}}},
         ...     'ses': defaultdict(dict, {'*': {'111': {'*': set()}, '222': {'*': set()}}})
         ...     }
         >>> runtime._process_regions()
@@ -138,7 +138,7 @@ class Base(RuntimeBase, BaseApi):
         Runtime, _get_regions, {'us-east-1', 'us-east-2'}, account='111', service='ses'
         Runtime, _get_regions, {'us-east-1', 'us-east-2'}, account='222', service='ses'
         >>> pprint(normalize_dict(runtime._permissions))
-        {'dynamodb': {'us-west-1': {'111': {'Table/a': set(), 'Table/b': set()}}},
+        {'dynamodb': {'us-west-1': {'111': {'table/a': set(), 'table/b': set()}}},
          'ses': {'us-east-1': {'111': {'*': set()}, '222': {'*': set()}}, 'us-east-2': {'111': {'*': set()}, '222': {'*': set()}}}}
         """
 
@@ -179,19 +179,112 @@ class Base(RuntimeBase, BaseApi):
 
     def _process_actions(self):
         for service, regions in self._permissions.items():
+            actions = set()
+            self._walk(
+                    self._get_actions,
+                    # custom arguments to processor
+                    actions,
+                    service=service,
+                    )
+
             for region, accounts in regions.items():
                 for account, resources in accounts.items():
-                    for resource, actions in resources.items():
-                        self._walk(
-                                self._get_actions,
-                                # custom arguments to processor
-                                actions,
-                                region=region,
-                                account=account,
-                                service=service,
-                                resource=resource,
-                                )
-                        self._normalize_actions(actions, (service, region, account, resource))
+                    self._match_resources_actions(service, resources, actions)
+
+                    self._normalize_actions(resources, (service, region, account))
+
+    def _get_generic_resources(self, filename, file, resources, region, account, resource_format, get_all_resources_method):
+        """ Simply greps resources inside the given file.
+
+        >>> from collections import defaultdict
+        >>> from functools import partial
+        >>> from pprint import pprint
+        >>> from io import StringIO
+        >>> from test.mock import Mock
+        >>> from test.utils import normalize_dict
+        >>> mock = Mock(__name__)
+
+        >>> class Runtime(Base):
+        ...     pass
+        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime.environment = {'var1': "gigi table-1 latable-6", 'var2': "table-2 table-3"}
+
+        >>> class Client:
+        ...     def list_tables(self):
+        ...         return {'TableNames': ["table-1", "table-2", "table-3", "table-4", "table-5", "table-6"]}
+        >>> mock.mock(runtime, '_get_client', Client())
+
+        >>> resources = defaultdict(set)
+        >>> runtime._get_generic_resources('filename', StringIO("lalala table-4 lululu table-5 table-6la table-7 nonono"), resources, region='us-east-1', account='some-account',
+        ...                                resource_format="table/{}", get_all_resources_method=partial(runtime._get_generic_all_resources, 'dynamodb', api_method='list_tables', api_attribute='TableNames'))
+        >>> pprint(normalize_dict(resources))
+        {'table/table-1': set(), 'table/table-2': set(), 'table/table-3': set(), 'table/table-4': set(), 'table/table-5': set()}
+        >>> mock.calls_for('Runtime._get_client')
+        'dynamodb', 'us-east-1', 'some-account'
+        """
+
+        all_resources = get_all_resources_method(region=region, account=account)
+        if not all_resources:
+            resources[resource_format.format('*')]
+            return
+
+        # From file
+        content = file.read()
+        for resource, pattern in all_resources.items():
+            if pattern.search(content):
+                resources[resource_format.format(resource)]
+
+        # From environment
+        for resource, pattern in all_resources.items():
+            if any(pattern.search(value) for value in self.environment.values() if isinstance(value, str)):
+                resources[resource_format.format(resource)]
+
+    def _match_resources_actions(self, service, resources, actions):
+        """
+        >>> from pprint import pprint
+        >>> from test.utils import normalize_dict
+
+        >>> class Runtime(Base):
+        ...     pass
+        >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
+
+        >>> resources = defaultdict(set, {'table/sometable': set(), 'table/sometable/stream/somestream': set()})
+        >>> actions = {'dynamodb:PutItem', 'dynamodb:GetRecords', 'dynamodb:DeleteItem', 'dynamodb:DescribeStream', 'dynamodb:ListTables'}
+        >>> runtime._match_resources_actions('dynamodb', resources, actions)
+        >>> pprint(normalize_dict(resources))
+        {'*': {'dynamodb:ListTables'}, 'table/sometable': {'dynamodb:DeleteItem', 'dynamodb:PutItem'}, 'table/sometable/stream/somestream': {'dynamodb:DescribeStream', 'dynamodb:GetRecords'}}
+
+        >>> resources = defaultdict(set, {'table/sometable': set()})
+        >>> actions = {'dynamodb:GetRecords', 'dynamodb:DescribeStream'}
+        >>> runtime._match_resources_actions('dynamodb', resources, actions)
+        >>> pprint(normalize_dict(resources))
+        {'table/*/stream/*': {'dynamodb:DescribeStream', 'dynamodb:GetRecords'}, 'table/sometable': set()}
+        """
+
+        matchers = BaseApi.SERVICE_RESOURCE_ACTION_MATCHERS.get(service)
+
+        if not matchers:
+            if not resources:
+                resources['*']
+            # not specific matchers, just add all actions to all resources
+            for resource, resource_actions in resources.items():
+                resource_actions.update(actions)
+            return
+
+        unused_actions = set(actions)
+        # matching with resources
+        for resource, resource_actions in resources.items():
+            for pattern, default, matching_actions in matchers:
+                if pattern.match(resource):
+                    matching = matching_actions.intersection(actions)
+                    unused_actions.difference_update(matching)
+                    resource_actions.update(matching)
+                    break
+        # adding unused actions to 'default' resources
+        for action in unused_actions:
+            for pattern, default, matching_actions in matchers:
+                if action in matching_actions:
+                    resources[default].add(action)
 
     def _cleanup(self):
         """ Merges region-less services and resource-less actions.
@@ -204,23 +297,23 @@ class Base(RuntimeBase, BaseApi):
         >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
 
         >>> runtime._permissions = {
-        ...     'dynamodb': {'us-west-1': {'111': {'Table/a': {'dynamodb:GetItem'}}}},
+        ...     'dynamodb': {'us-west-1': {'111': {'table/a': {'dynamodb:GetItem'}}}},
         ...     's3': defaultdict(dict, {'us-east-1': {'some-account': {'somebucket': {'s3:CreateBucket'}}}, 'us-west-1': {'another-account': {'anotherbucket': {'s3:ListObjects'}}}})
         ...     }
         >>> runtime._cleanup()
         >>> pprint(normalize_dict(runtime._permissions))
-        {'dynamodb': {'us-west-1': {'111': {'Table/a': {'dynamodb:GetItem'}}}},
+        {'dynamodb': {'us-west-1': {'111': {'table/a': {'dynamodb:GetItem'}}}},
          's3': {'': {'another-account': {'anotherbucket': {'s3:ListObjects'}}, 'some-account': {'*': {'s3:CreateBucket'}}}}}
         """
         # Region-less services
-        for service in Base.REGIONLESS_SERVICES:
+        for service in BaseApi.REGIONLESS_SERVICES:
             if service not in self._permissions:
                 continue
             merged = reduce(deepmerge, self._permissions[service].values())
             self._permissions[service].clear()
             self._permissions[service][''] = merged
 
-        for service, resourceless_actions in Base.SERVICE_RESOURCELESS_ACTIONS.items():
+        for service, resourceless_actions in BaseApi.SERVICE_RESOURCELESS_ACTIONS.items():
             if service not in self._permissions:
                 continue
             for region, accounts in self._permissions[service].items():
@@ -298,14 +391,14 @@ class Base(RuntimeBase, BaseApi):
         >>> resources = defaultdict(set)
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
-        "warn: unknown permissions for 'dynamodb:us-west-1'"
+        "warn: unknown resources for 'dynamodb:us-west-1'"
         >>> dict(resources)
         {'*': set()}
         """
 
         if not resources:
             resources['*'] # accessing to initialize defaultdict
-            eprint("warn: unknown permissions for '{}'".format(':'.join(parents)))
+            eprint("warn: unknown resources for '{}'".format(':'.join(parents)))
         else:
             # mapping all resources wildcard matching to others
             wildcard_matches = {}
@@ -326,10 +419,11 @@ class Base(RuntimeBase, BaseApi):
                     del resources[resource]
                 resources[wildcard] = merged
 
-    def _normalize_actions(self, actions, parents):
+    def _normalize_actions(self, resources, parents):
         """ Convert set to match-all when there's at least one.
 
         >>> from pprint import pprint
+        >>> from test.utils import normalize_dict
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
 
@@ -337,28 +431,51 @@ class Base(RuntimeBase, BaseApi):
         ...     pass
         >>> runtime = Runtime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
 
-        >>> actions = {'a', 'b', 'c'}
-        >>> runtime._normalize_actions(actions, ['dynamodb', 'us-west-1', 'Table/SomeTable'])
-        >>> sorted(actions)
-        ['a', 'b', 'c']
+        >>> resources = {'table/sometable': {'a', 'b', 'c'}}
+        >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
+        >>> pprint(normalize_dict(resources))
+        {'table/sometable': {'a', 'b', 'c'}}
 
-        >>> actions = {'a', '*', 'c'}
-        >>> runtime._normalize_actions(actions, ['dynamodb', 'us-west-1', 'Table/SomeTable'])
-        >>> actions
-        {'*'}
+        >>> resources = {'table/sometable': {'a', '*', 'c'}}
+        >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
+        >>> pprint(normalize_dict(resources))
+        {'table/sometable': {'*'}}
+
+        >>> resources = {'table/sometable': set(), 'table/sometable/stream/somestream': {'dynamodb:DescribeStream'}}
+        >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
+        >>> pprint(normalize_dict(resources))
+        {'table/sometable/stream/somestream': {'dynamodb:DescribeStream'}}
+
+        >>> resources = {'table/sometable/stream/somestream': set(), 'table/sometable': {'dynamodb:GetItem'}}
+        >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
+        >>> pprint(normalize_dict(resources))
+        {'table/sometable': {'dynamodb:GetItem'}}
 
         >>> mock.mock(None, 'eprint')
-        >>> actions = set()
-        >>> runtime._normalize_actions(actions, ['dynamodb', 'us-west-1', 'Table/SomeTable'])
+        >>> resources = {'table/sometable': set()}
+        >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
-        "warn: unknown permissions for 'dynamodb:us-west-1:Table/SomeTable'"
-        >>> actions
-        {'*'}
+        "warn: unknown actions for 'dynamodb:us-west-1:table/sometable'"
+        >>> pprint(normalize_dict(resources))
+        {'table/sometable': {'*'}}
+
+        >>> resources = {'table/sometable': set(), 'table/sometable/stream/somestream': set()}
+        >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
+        >>> pprint(normalize_dict(resources))
+        {'table/sometable': {'*'}, 'table/sometable/stream/somestream': {'*'}}
         """
-        if not actions:
-            actions.add('*')
-            eprint("warn: unknown permissions for '{}'".format(':'.join(parents)))
-        elif '*' in actions:
-            actions.clear()
-            actions.add('*')
+        for resource, actions in tuple(resources.items()):
+            if not actions:
+                # if there are no other resources with common name that *do* have actions
+                if any(
+                        (other_resource.startswith(resource.rstrip('*')) or resource.startswith(other_resource.rstrip('*'))) and other_actions.difference({'*'})
+                        for other_resource, other_actions in resources.items()):
+                    # then it's fine
+                    del resources[resource]
+                else:
+                    actions.add('*')
+                    eprint("warn: unknown actions for '{}:{}'".format(':'.join(parents), resource))
+            elif '*' in actions:
+                actions.clear()
+                actions.add('*')
 

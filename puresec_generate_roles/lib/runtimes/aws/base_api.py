@@ -15,16 +15,13 @@ class BaseApi:
 
     SERVICE_RESOURCES_PROCESSOR = {
             # service: function(self, filename, file, resources, region, account)
-            'dynamodb': lambda self: partial(self._get_generic_resources, resource_format="table/{}",
-                                             get_all_resources_method=partial(self._get_generic_all_resources, 'dynamodb', api_method='list_tables', api_attribute='TableNames')),
+            'dynamodb': lambda self: self._get_dynamodb_resources,
             'kinesis':  lambda self: partial(self._get_generic_resources, resource_format="stream/{}",
                                              get_all_resources_method=partial(self._get_generic_all_resources, 'kinesis', api_method='list_streams', api_attribute='StreamNames')),
-            'kms':      lambda self: partial(self._get_generic_resources, resource_format="key/{}",
-                                             get_all_resources_method=partial(self._get_generic_all_resources, 'kms', api_method='list_keys', api_attribute='Keys', api_inner_attribute='KeyId')),
-            'lambda':   lambda self: partial(self._get_generic_resources, resource_format="function/{}",
+            'kms':      lambda self: self._get_kms_resources,
+            'lambda':   lambda self: partial(self._get_generic_resources, resource_format="{}",
                                              get_all_resources_method=partial(self._get_generic_all_resources, 'lambda', api_method='list_functions', api_attribute='Functions', api_inner_attribute='FunctionName')),
-            's3':       lambda self: partial(self._get_generic_resources, resource_format="{}",
-                                             get_all_resources_method=partial(self._get_generic_all_resources, 's3', api_method='list_buckets', api_attribute='Buckets', api_inner_attribute='Name')),
+            's3':       lambda self: self._get_s3_resources,
             'sns':      lambda self: partial(self._get_generic_resources, resource_format="{}",
                                              get_all_resources_method=partial(self._get_generic_all_resources, 'sns', api_method='list_topics', api_attribute='Topics', api_inner_attribute='TopicArn',
                                                                               resource_converter=lambda topic_arn: ARN_RESOURCE_PATTERN.match(topic_arn).group(1))),
@@ -35,23 +32,171 @@ class BaseApi:
             's3',
             )
 
+    SERVICE_RESOURCE_ACTION_MATCHERS = {
+            # service: (resource_pattern, resource_default, (action, ...))
+            'dynamodb': (
+                # stream
+                (re.compile(r"table/.+/stream/.+"), "table/*/stream/*", set(
+                    "dynamodb:{}".format(action) for action in (
+                        'DescribeStream', 'GetRecords', 'GetShardIterator',
+                    ))),
+                # table
+                (re.compile(r"table/.+"), "table/*", set(
+                    "dynamodb:{}".format(action) for action in (
+                        'BatchGetItem', 'BatchWriteItem', 'CreateTable', 'DeleteItem', 'DeleteTable',
+                        'DescribeTable', 'DescribeTimeToLive', 'GetItem', 'ListStreams', 'ListTagsOfResource',
+                        'PutItem', 'Query', 'Scan', 'TagResource', 'UntagResource',
+                        'UpdateItem', 'UpdateTable', 'UpdateTimeToLive',
+                    ))),
+                # global
+                (re.compile(r"\*$"), "*", set(
+                    "dynamodb:{}".format(action) for action in (
+                        'DescribeLimits', 'DescribeReservedCapacity', 'DescribeReservedCapacityOfferings', 'ListTables', 'PurchaseReservedCapacityOfferings',
+                    ))),
+            ),
+            'kinesis': (
+                # stream
+                (re.compile(r"stream/.+"), "stream/*", set(
+                    "kinesis:{}".format(action) for action in (
+                        'AddTagsToStream', 'DecreaseStreamRetentionPeriod', 'DeleteStream', 'DescribeLimits', 'DescribeStream',
+                        'DisableEnhancedMonitoring', 'EnableEnhancedMonitoring', 'GetRecords', 'GetShardIterator', 'IncreaseStreamRetentionPeriod',
+                        'ListTagsForStream', 'MergeShards', 'PutRecord', 'PutRecords', 'RemoveTagsFromStream',
+                        'SplitShard', 'UpdateShardCount',
+                    ))),
+                # global
+                (re.compile(r"\*$"), "*", set(
+                    "kinesis:{}".format(action) for action in (
+                        'CreateStream', 'ListStreams',
+                    ))),
+            ),
+            'kms': (
+                # key
+                (re.compile(r"key/.+"), "key/*", set(
+                    "kms:{}".format(action) for action in (
+                        'CancelKeyDeletion', 'CreateAlias', 'CreateGrant', 'Decrypt', 'DeleteAlias',
+                        'DeleteImportedKeyMaterial', 'DescribeKey', 'DisableKey', 'DisableKeyRotation', 'EnableKey',
+                        'EnableKeyRotation', 'Encrypt', 'GenerateDataKey', 'GenerateDataKeyWithoutPlaintext', 'GetKeyPolicy',
+                        'GetKeyRotationStatus', 'GetParametersForImport', 'ImportKeyMaterial', 'ListGrants', 'ListKeyPolicies',
+                        'PutKeyPolicy', 'ReEncrypt', 'RevokeGrant', 'ScheduleKeyDeletion', 'UpdateAlias',
+                        'UpdateKeyDescription',
+                    ))),
+                # alias
+                (re.compile(r"alias/.+"), "alias/*", set(
+                    "kms:{}".format(action) for action in (
+                        'CreateAlias', 'DeleteAlias', 'UpdateAlias',
+                    ))),
+                # global
+                (re.compile(r"\*$"), "*", set(
+                    "kms:{}".format(action) for action in (
+                        'CreateKey', 'GenerateRandom', 'ListAliases', 'ListKeys', 'ListRetirableGrants',
+                    ))),
+            ),
+            'lambda': (
+                # function
+                (re.compile(r".+"), "*", set(
+                    "lambda:{}".format(action) for action in (
+                        'AddPermission', 'CreateAlias', 'DeleteAlias', 'DeleteFunction', 'GetAccountSettings',
+                        'GetAlias', 'GetFunction', 'GetFunctionConfiguration', 'GetPolicy', 'InvokeAsync',
+                        'InvokeFunction', 'ListAliases', 'ListVersionsByFunction', 'PublishVersion', 'RemovePermission',
+                        'UpdateAlias', 'UpdateFunctionCode', 'UpdateFunctionConfiguration',
+                    ))),
+                # global
+                (re.compile(r"\*$"), "*", set(
+                    "lambda:{}".format(action) for action in (
+                        'CreateEventSourceMapping', 'CreateFunction', 'DeleteEventSourceMapping', 'GetEventSourceMapping', 'ListEventSourceMappings',
+                        'ListFunctions', 'UpdateEventSourceMapping',
+                    ))),
+            ),
+            's3': (
+                # object
+                (re.compile(r".+/.+"), "*/*", set(
+                    "s3:{}".format(action) for action in (
+                        'AbortMultipartUpload', 'DeleteObject', 'DeleteObjectTagging', 'GetObject', 'GetObjectAcl',
+                        'GetObjectTagging', 'GetObjectTorrent', 'ListMultipartUploadParts', 'PutObject', 'PutObjectAcl',
+                        'PutObjectTagging', 'RestoreObject',
+                    ))),
+                # bucket
+                (re.compile(r".+"), "*", set(
+                    "s3:{}".format(action) for action in (
+                        'DeleteBucket' 'DeleteBucketPolicy' 'DeleteBucketWebsite' 'DeleteReplicationConfiguration', 'GetAccelerateConfiguration',
+                        'GetAnalyticsConfiguration', 'GetBucketAcl', 'GetBucketCORS', 'GetBucketLocation' 'GetBucketLogging'
+                        'GetBucketNotification' 'GetBucketNotification', 'GetBucketPolicy' 'GetBucketRequestPayment', 'GetBucketTagging'
+                        'GetBucketVersioning' 'GetBucketWebsite' 'GetInventoryConfiguration', 'GetLifecycleConfiguration', 'GetMetricsConfiguration',
+                        'GetReplicationConfiguration', 'ListBucket', 'ListBucketMultipartUploads', 'ListBucketVersions', 'PutAccelerateConfiguration',
+                        'PutAnalyticsConfiguration', 'PutBucketAcl' 'PutBucketCORS', 'PutBucketLogging', 'PutBucketNotification'
+                        'PutBucketNotification', 'PutBucketPolicy' 'PutBucketRequestPayment' 'PutBucketTagging' 'PutBucketTagging',
+                        'PutBucketVersioning', 'PutBucketWebsite', 'PutInventoryConfiguration', 'PutLifecycleConfiguration', 'PutMetricsConfiguration',
+                        'PutReplicationConfiguration',
+                    ))),
+                # global
+                (re.compile(r"\*$"), "*", set(
+                    "s3:{}".format(action) for action in (
+                        'CreateBucket', 'ListAllMyBuckets',
+                    ))),
+            ),
+            'sns': (
+                # function
+                (re.compile(r".+"), "*", set(
+                    "sns:{}".format(action) for action in (
+                        'AddPermission', 'CheckIfPhoneNumberIsOptedOut', 'ConfirmSubscription', 'CreatePlatformApplication', 'CreatePlatformEndpoint',
+                        'DeleteEndpoint', 'DeletePlatformApplication', 'DeleteTopic', 'GetEndpointAttributes', 'GetPlatformApplicationAttributes',
+                        'GetSMSAttributes', 'GetSubscriptionAttributes', 'GetTopicAttributes', 'ListEndpointsByPlatformApplication', 'ListPhoneNumbersOptedOut',
+                        'ListPlatformApplications', 'ListSubscriptions', 'ListSubscriptionsByTopic', 'OptInPhoneNumber', 'Publish',
+                        'RemovePermission', 'SetEndpointAttributes', 'SetPlatformApplicationAttributes', 'SetSMSAttributes', 'SetSubscriptionAttributes',
+                        'SetTopicAttributes', 'Subscribe', 'Unsubscribe',
+                    ))),
+                # global
+                (re.compile(r"\*$"), "*", set(
+                    "sns:{}".format(action) for action in (
+                        'CreateTopic', 'ListTopics',
+                    ))),
+            ),
+            'states': (
+                # state machine
+                (re.compile(r"stateMachine:.+"), "stateMachine:*", set(
+                    "states:{}".format(action) for action in (
+                        'DeleteStateMachine', 'DescribeStateMachine', 'ListExecutions',
+                    ))),
+                # activity
+                (re.compile(r"activity:.+"), "activity:*", set(
+                    "states:{}".format(action) for action in (
+                        'DeleteActivity', 'DescribeActivity', 'GetActivityTask',
+                    ))),
+                # execution
+                (re.compile(r"execution:.+:.+"), "execution:*:*", set(
+                    "states:{}".format(action) for action in (
+                        'DescribeExecution', 'GetExecutionHistory', 'StartExecution', 'StopExecution',
+                    ))),
+                # global
+                (re.compile(r"\*$"), "*", set(
+                    "states:{}".format(action) for action in (
+                        'CreateActivity', 'CreateStateMachine', 'ListActivities', 'ListStateMachines', 'SendTaskFailure',
+                        'SendTaskHeartbeat', 'SendTaskSuccess',
+                    ))),
+            ),
+        }
+
     SERVICE_RESOURCELESS_ACTIONS = {
             'dynamodb': tuple(
                 # "CreateBucket" -> "s3:CreateBucket"
-                "dynamodb:{}".format(method)
-                for method in
-                (
+                "dynamodb:{}".format(action)
+                for action in (
                     'DescribeLimits', 'DescribeReservedCapacity', 'DescribeReservedCapacityOfferings', 'ListTables', 'PurchaseReservedCapacityOfferings',
-                    )
+                )
             ),
             's3': tuple(
-                # "CreateBucket" -> "s3:CreateBucket"
-                "s3:{}".format(method)
-                for method in
-                (
-                    'CreateBucket',
-                    )
+                "s3:{}".format(action)
+                for action in (
+                    'CreateBucket', 'ListAllMyBuckets',
+                )
             ),
+            'states': tuple(
+                "states:{}".format(action)
+                for action in (
+                    'createActivity', 'createStateMachine', 'listActivities', 'listStateMachines', 'sendTaskFailure',
+                    'sendTaskHeartbeat', 'sendTaskSuccess',
+                )
+            )
         }
 
     # { (client, api_method, api_kwargs): { resource: resource_pattern } } }
@@ -76,7 +221,7 @@ class BaseApi:
         return result
 
     RESOURCE_PATTERN = r"\b{}\b"
-    def _get_generic_all_resources(self, service, region, account, api_method, api_attribute, api_inner_attribute=None, resource_converter=None, api_kwargs={}):
+    def _get_generic_all_resources(self, service, region, account, api_method, api_attribute, api_inner_attribute=None, resource_converter=None, api_kwargs={}, warn=True):
         """
         >>> from pprint import pprint
         >>> from test.mock import Mock
@@ -148,7 +293,7 @@ class BaseApi:
         """
 
         resources = self._get_cached_api_result(service, region=region, account=account, api_method=api_method, api_kwargs=api_kwargs)[api_attribute]
-        if not resources:
+        if not resources and warn:
             if not hasattr(self, '_no_resources_warnings'):
                 self._no_resources_warnings = set()
             warning_arguments = (service, region, account, api_method, frozenset(api_kwargs.items()))
@@ -168,59 +313,63 @@ class BaseApi:
 
         return resources
 
-    def _get_generic_resources(self, filename, file, resources, region, account, resource_format, get_all_resources_method):
-        """ Simply greps resources inside the given file.
+    def _get_s3_resources(self, filename, file, resources, region, account):
+        # buckets
+        buckets = defaultdict(set)
+        self._get_generic_resources(filename, file, buckets, region=region, account=account, resource_format="{}",
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 's3', api_method='list_buckets', api_attribute='Buckets', api_inner_attribute='Name'))
+        resources.update(buckets)
+        # objects
+        for bucket in buckets:
+            resources["{}/*".format(bucket)]
 
-        >>> from collections import defaultdict
-        >>> from pprint import pprint
-        >>> from io import StringIO
-        >>> from test.mock import Mock
-        >>> mock = Mock(__name__)
+    def _get_dynamodb_resources(self, filename, file, resources, region, account):
+        # tables
+        tables = defaultdict(set)
+        self._get_generic_resources(filename, file, tables, region=region, account=account, resource_format="table/{}",
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'dynamodb', api_method='list_tables', api_attribute='TableNames'))
+        resources.update(tables)
+        # streams
+        for table in tables:
+            if table.endswith('*'):
+                resources["{}/streams/*".format(table)]
+            else:
+                table = re.sub(r"^table/", '', table)
+                self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="table/{}/stream/{{}}".format(table),
+                                            get_all_resources_method=partial(self._get_generic_all_resources, 'dynamodbstreams', api_method='list_streams', api_attribute='Streams', api_inner_attribute='StreamLabel', api_kwargs={'TableName': table}, warn=False))
 
-        >>> class Runtime(BaseApi):
-        ...     pass
-        >>> runtime = Runtime()
-        >>> runtime.environment = {'var1': "gigi table-1 latable-6", 'var2': "table-2 table-3"}
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': ["table-1", "table-2", "table-3", "table-4", "table-5", "table-6"]}
-        >>> mock.mock(runtime, '_get_client', Client())
-
-        >>> resources = defaultdict(set)
-        >>> runtime._get_generic_resources('filename', StringIO("lalala table-4 lululu table-5 table-6la table-7 nonono"), resources, region='us-east-1', account='some-account',
-        ...                                resource_format="table/{}", get_all_resources_method=partial(runtime._get_generic_all_resources, 'dynamodb', api_method='list_tables', api_attribute='TableNames'))
-        >>> pprint(resources)
-        {'table/table-1': set(), 'table/table-2': set(), 'table/table-3': set(), 'table/table-4': set(), 'table/table-5': set()}
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
-        """
-
-        all_resources = get_all_resources_method(region=region, account=account)
-        # From file
-        content = file.read()
-        for resource, pattern in all_resources.items():
-            if pattern.search(content):
-                resources[resource_format.format(resource)] # accessing to initialize defaultdict
-
-        # From environment
-        for resource, pattern in all_resources.items():
-            if any(pattern.search(value) for value in self.environment.values() if isinstance(value, str)):
-                resources[resource_format.format(resource)] # accessing to initialize defaultdict
+    def _get_kms_resources(self, filename, file, resources, region, account):
+        # keys
+        self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="key/{}",
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'kms', api_method='list_keys', api_attribute='Keys', api_inner_attribute='KeyId'))
+        # aliases
+        self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="alias/{}",
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'kms', api_method='list_aliases', api_attribute='Aliases', api_inner_attribute='AliasName'))
 
     def _get_states_resources(self, filename, file, resources, region, account):
         # According to: https://forums.aws.amazon.com/thread.jspa?messageID=755476
 
         # state machines
-        self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="stateMachine:{}",
+        state_machines = defaultdict(set)
+        self._get_generic_resources(filename, file, state_machines, region=region, account=account, resource_format="stateMachine:{}",
                                     get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', api_method='list_state_machines', api_attribute='stateMachines', api_inner_attribute='name'))
+        resources.update(state_machines)
         # activities
         self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="activity:{}",
                                     get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', api_method='list_activities', api_attribute='activities', api_inner_attribute='name'))
         # executions
-        for state_machine in self._get_cached_api_result('stepfunctions', region=region, account=account, api_method='list_state_machines', api_kwargs={})['stateMachines']:
-            self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="execution:{}:{{}}".format(state_machine['name']),
-                                        get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', api_method='list_executions', api_attribute='executions', api_inner_attribute='name', api_kwargs={'stateMachineArn': state_machine['stateMachineArn']}))
+        state_machine_arns = dict(
+                (state_machine['name'], state_machine['stateMachineArn'])
+                for state_machine in
+                self._get_cached_api_result('stepfunctions', region=region, account=account, api_method='list_state_machines')['stateMachines']
+                )
+        for state_machine in state_machines:
+            if state_machine.endswith('*'):
+                resources["executions:*:*"]
+            else:
+                state_machine = re.sub(r"^stateMachine:", '', state_machine)
+                self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="execution:{}:{{}}".format(state_machine),
+                                            get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', api_method='list_executions', api_attribute='executions', api_inner_attribute='name', api_kwargs={'stateMachineArn': state_machine_arns[state_machine]}))
 
     # { (service, region, account): client }
     CLIENTS_CACHE = {}
@@ -261,6 +410,7 @@ class BaseApi:
         >>> pprint(runtime.config)
         {'aws': {'accounts': {'another_account': {'profile': 'dummy'}}}}
         """
+
         client = BaseApi.CLIENTS_CACHE.get((service, region, account))
         if client:
             return client # from cache
