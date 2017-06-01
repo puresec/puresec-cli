@@ -3,8 +3,8 @@ from lib import frameworks, providers
 import os
 
 parser = ArgumentParser(
-        usage="bin/lp",
-        description="PureSec Least Privilege Role Creator"
+        usage="bin/gen-roles",
+        description="PureSec Role Generator"
         )
 parser.add_argument('path', nargs='*', default=[os.getcwd()],
                     help="Path to the root directory of your project")

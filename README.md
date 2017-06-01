@@ -1,19 +1,19 @@
-# least-privileges
+# puresec-generate-roles
 
-A CLI tool for creating IAM roles with least privilege permissions using static code analysis.
+A CLI tool for creating cloud roles with least privilege permissions using static code analysis.
 
 ## Development
 
 ```bash
 pip install -r requirements.txt requirements/*
-nosetests -c nose.cfg least_privileges/
+nosetests -c nose.cfg puresec_generate_roles/
 ```
 
 ## Usage
 
 ```bash
 pip install -r requirements.txt requirements/<depending on your needs>.txt
-bin/lp --help
+bin/gen-roles --help
 ```
 
 ### Serverless

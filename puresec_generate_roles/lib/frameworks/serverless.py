@@ -40,7 +40,7 @@ class ServerlessFramework(Base):
                 eprint("error: could not find serverless config in: {}".format(serverless_config_path))
                 raise SystemExit(-1)
 
-            self._serverless_package = TemporaryDirectory(prefix="least-privileges-")
+            self._serverless_package = TemporaryDirectory(prefix="puresec-generate-roles-")
 
             try:
                 process = Popen([self.executable, 'package', '--package', self._serverless_package.name], cwd=self.path, stdout=PIPE, stderr=STDOUT)
