@@ -65,8 +65,7 @@ class Base:
         pass
 
     def get_resource_template(self):
-        eprint("error: could not get resource template from framework '{}'", type(self).__name__)
-        raise SystemExit(2)
+        pass
 
     def get_default_profile(self):
         pass

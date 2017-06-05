@@ -9,51 +9,38 @@ import os
 import re
 
 class AwsProvider(Base):
-    def __init__(self, path, config, resource_template=None, framework=None):
+    def __init__(self, path, config, resource_template=None, runtime=None, framework=None):
         """
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
         >>> mock.mock(AwsProvider, '_init_default_account')
 
-        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json")
+        >>> AwsProvider("path/to/project", config={})
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
-        'error: could not find CloudFormation template in: path/to/cloudformation.json'
+        'error: must supply either --resource-template, --runtime, or --framework'
 
         >>> with mock.open("path/to/cloudformation.json", 'w') as f:
-        ...     f.write("not a JSON") and None
-        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json")
-        Traceback (most recent call last):
-        SystemExit: -1
+        ...     f.write('{}') and None
+        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", runtime='nodejs') and None
         >>> mock.calls_for('eprint')
-        'error: invalid CloudFormation template:\\nExpecting value: line 1 column 1 (char 0)'
-
-        >>> with mock.open("path/to/cloudformation.json", 'w') as f:
-        ...     f.write('{ "a": { "b": 1 } }') and None
-        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json").cloudformation_template
-        {'a': {'b': 1}}
+        'warn: ignoring --runtime when --resource-template or --framework supplied'
         """
 
-        super().__init__(path, config, resource_template, framework)
+        super().__init__(path, config, resource_template=resource_template, runtime=runtime, framework=framework)
+
+        if not self.resource_template and not self.runtime:
+            eprint("error: must supply either --resource-template, --runtime, or --framework")
+            raise SystemExit(2)
+        if self.resource_template and self.runtime:
+            eprint("warn: ignoring --runtime when --resource-template or --framework supplied")
 
         self._init_session()
         self._init_default_region()
         self._init_default_account()
-
-        try:
-            resource_template = open(self.resource_template, 'r', errors='replace')
-        except FileNotFoundError:
-            eprint("error: could not find CloudFormation template in: {}".format(self.resource_template))
-            raise SystemExit(2)
-
-        with resource_template:
-            try:
-                self.cloudformation_template = aws_parsecf.load_json(resource_template, default_region=self.default_region)
-            except ValueError as e:
-                eprint("error: invalid CloudFormation template:\n{}".format(e))
-                raise SystemExit(-1)
+        self._init_cloudformation_template()
 
     @property
     def format(self):
@@ -209,6 +196,50 @@ class AwsProvider(Base):
             eprint("error: failed to get account from aws:\n{}".format(e))
             raise SystemExit(-1)
 
+    def _init_cloudformation_template(self):
+        """
+        >>> from test.mock import Mock
+        >>> mock = Mock(__name__)
+        >>> mock.mock(None, 'eprint')
+        >>> mock.mock(AwsProvider, '_init_default_account')
+
+        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json")
+        Traceback (most recent call last):
+        SystemExit: 2
+        >>> mock.calls_for('eprint')
+        'error: could not find CloudFormation template in: path/to/cloudformation.json'
+
+        >>> with mock.open("path/to/cloudformation.json", 'w') as f:
+        ...     f.write("not a JSON") and None
+        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json")
+        Traceback (most recent call last):
+        SystemExit: -1
+        >>> mock.calls_for('eprint')
+        'error: invalid CloudFormation template:\\nExpecting value: line 1 column 1 (char 0)'
+
+        >>> with mock.open("path/to/cloudformation.json", 'w') as f:
+        ...     f.write('{ "a": { "b": 1 } }') and None
+        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json").cloudformation_template
+        {'a': {'b': 1}}
+        """
+
+        if not self.resource_template:
+            self.cloudformation_template = None
+            return
+
+        try:
+            resource_template = open(self.resource_template, 'r', errors='replace')
+        except FileNotFoundError:
+            eprint("error: could not find CloudFormation template in: {}".format(self.resource_template))
+            raise SystemExit(2)
+
+        with resource_template:
+            try:
+                self.cloudformation_template = aws_parsecf.load_json(resource_template, default_region=self.default_region)
+            except ValueError as e:
+                eprint("error: invalid CloudFormation template:\n{}".format(e))
+                raise SystemExit(-1)
+
     def process(self):
         """
         >>> from pprint import pprint
@@ -293,6 +324,24 @@ class AwsProvider(Base):
         >>> handler._function_runtimes
         {}
 
+        >>> handler.cloudformation_template = None
+        >>> handler.runtime = 'nodejs'
+        >>> handler.process()
+        >>> mock.calls_for('import_module')
+        'lib.runtimes.aws.nodejs'
+        >>> list(handler._function_runtimes.keys())
+        ['nnamed']
+        >>> handler._function_runtimes['nnamed'].root
+        'path/to/project/functions/nnamed'
+        >>> handler._function_runtimes['nnamed'].default_region
+        'default_region'
+        >>> handler._function_runtimes['nnamed'].default_account
+        'default_account'
+        >>> handler._function_runtimes['nnamed'].environment
+        {}
+        >>> handler._function_runtimes['nnamed'].processed
+        True
+
         >>> handler.cloudformation_template = {
         ...     'Resources': {
         ...         'ResourceId': {
@@ -352,7 +401,21 @@ class AwsProvider(Base):
         """
         self._function_real_names = {}
         self._function_runtimes = {}
-        for resource_id, resource_config in self.cloudformation_template.get('Resources', {}).items():
+
+        if self.cloudformation_template:
+            resources = self.cloudformation_template.get('Resources', {})
+        else:
+            resources = {
+                    'UnnamedFunction': {
+                        'Type': 'AWS::Lambda::Function',
+                        'Properties': {
+                            'FunctionName': 'Unnamed',
+                            'Runtime': self.runtime,
+                            }
+                        }
+                    }
+
+        for resource_id, resource_config in resources.items():
             if resource_config['Type'] == 'AWS::Lambda::Function':
                 # Getting name
                 real_name = resource_config.get('Properties', {}).get('FunctionName')

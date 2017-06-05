@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from lib import frameworks, providers
+from lib.runtimes import aws
 import os
 
 parser = ArgumentParser(
@@ -10,10 +11,13 @@ parser.add_argument('path', nargs='*', default=[os.getcwd()],
                     help="Path to the root directory of your project")
 
 parser.add_argument('--provider', '-p', choices=providers.__all__,
-                    help="Name of the cloud provider (required)")
+                    help="Name of the cloud provider (required without --framework)")
 
 parser.add_argument('--resource-template', '-t',
-                    help="Provider-specific resource template (e.g CloudFormation JSON for AWS)")
+                    help="Provider-specific resource template (e.g CloudFormation JSON for AWS) (optional)")
+
+parser.add_argument('--runtime', '-r', choices=aws.__all__,
+                    help="Runtime language (optional)")
 
 parser.add_argument('--framework', '-f', choices=frameworks.__all__,
                     help="Framework used for deploying (optional)")
