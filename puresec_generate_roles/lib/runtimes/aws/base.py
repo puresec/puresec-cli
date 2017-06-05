@@ -444,6 +444,7 @@ class Base(RuntimeBase):
 
         >>> from pprint import pprint
         >>> from io import StringIO
+        >>> from test.utils import normalize_dict
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
 
@@ -459,7 +460,7 @@ class Base(RuntimeBase):
 
         >>> resources = defaultdict(set)
         >>> runtime._get_dynamodb_resources('filename', StringIO("lalala table-4 lululu table-5 table-6la table-7 nonono"), resources, region='us-east-1', account='some-account')
-        >>> pprint(resources)
+        >>> pprint(normalize_dict(resources))
         {'Table/table-1': set(), 'Table/table-2': set(), 'Table/table-3': set(), 'Table/table-4': set(), 'Table/table-5': set()}
         >>> mock.calls_for('Runtime._get_client')
         'dynamodb', 'us-east-1', 'some-account'
