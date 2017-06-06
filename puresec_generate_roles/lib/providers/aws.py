@@ -444,6 +444,7 @@ class AwsProvider(Base):
                 self._function_runtimes[name] = runtime = import_module("lib.runtimes.aws.{}".format(runtime)).Runtime(
                         root,
                         config=self.config,
+                        cloudformation_template=self.cloudformation_template,
                         session=self.session,
                         default_region=self.default_region,
                         default_account=self.default_account,

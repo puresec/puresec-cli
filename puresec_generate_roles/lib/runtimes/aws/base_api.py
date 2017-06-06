@@ -17,13 +17,13 @@ class BaseApi:
             # service: function(self, filename, file, resources, region, account)
             'dynamodb': lambda self: self._get_dynamodb_resources,
             'kinesis':  lambda self: partial(self._get_generic_resources, resource_format="stream/{}",
-                                             get_all_resources_method=partial(self._get_generic_all_resources, 'kinesis', api_method='list_streams', api_attribute='StreamNames')),
+                                             get_all_resources_method=partial(self._get_generic_all_resources, 'kinesis', template_type='AWS::Kinesis::Stream', api_method='list_streams', api_attribute='StreamNames')),
             'kms':      lambda self: self._get_kms_resources,
             'lambda':   lambda self: partial(self._get_generic_resources, resource_format="{}",
-                                             get_all_resources_method=partial(self._get_generic_all_resources, 'lambda', api_method='list_functions', api_attribute='Functions', api_inner_attribute='FunctionName')),
+                                             get_all_resources_method=partial(self._get_generic_all_resources, 'lambda', template_type='AWS::Lambda::Function', api_method='list_functions', api_attribute='Functions', api_inner_attribute='FunctionName')),
             's3':       lambda self: self._get_s3_resources,
             'sns':      lambda self: partial(self._get_generic_resources, resource_format="{}",
-                                             get_all_resources_method=partial(self._get_generic_all_resources, 'sns', api_method='list_topics', api_attribute='Topics', api_inner_attribute='TopicArn',
+                                             get_all_resources_method=partial(self._get_generic_all_resources, 'sns', template_type='AWS::SNS::Topic', api_method='list_topics', api_attribute='Topics', api_inner_attribute='TopicArn',
                                                                               resource_converter=lambda topic_arn: ARN_RESOURCE_PATTERN.match(topic_arn).group(1))),
             'states':   lambda self: self._get_states_resources,
             }
@@ -221,7 +221,7 @@ class BaseApi:
         return result
 
     RESOURCE_PATTERN = r"\b{}\b"
-    def _get_generic_all_resources(self, service, region, account, api_method, api_attribute, api_inner_attribute=None, resource_converter=None, api_kwargs={}, warn=True):
+    def _get_generic_all_resources(self, service, region, account, template_type, api_method, api_attribute, api_inner_attribute=None, resource_converter=None, api_kwargs={}, warn=True):
         """
         >>> from pprint import pprint
         >>> from test.mock import Mock
@@ -233,10 +233,26 @@ class BaseApi:
 
         >>> class Client:
         ...     def list_tables(self):
-        ...         return {'TableNames': ["table-1", "table-2"]}
+        ...         return {'TableNames': []}
         >>> mock.mock(runtime, '_get_client', Client())
 
-        >>> pprint(runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'list_tables', 'TableNames'))
+        >>> runtime.cloudformation_template = {'Resources': {'T1': {'Type': 'AWS::DynamoDB::Table', 'Properties': {'TableName': 'table-1'}},
+        ...                                                  'T2': {'Type': 'AWS::DynamoDB::Table', 'Properties': {'TableName': 'table-2'}},
+        ...                                                  'B1': {'Type': 'AWS::S3::Bucket', 'Properties': {'TableName': 'not-table-2'}}}}
+        >>> pprint(runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames'))
+        {'table-1': re.compile('\\\\btable\\\\-1\\\\b', re.IGNORECASE),
+         'table-2': re.compile('\\\\btable\\\\-2\\\\b', re.IGNORECASE)}
+        >>> mock.calls_for('Runtime._get_client')
+        'dynamodb', 'us-east-1', 'some-account'
+
+        >>> runtime.cloudformation_template = None
+
+        >>> class Client:
+        ...     def list_tables(self):
+        ...         return {'TableNames': ['table-1', 'table-2']}
+        >>> mock.mock(runtime, '_get_client', Client())
+
+        >>> pprint(runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames'))
         {'table-1': re.compile('\\\\btable\\\\-1\\\\b', re.IGNORECASE),
          'table-2': re.compile('\\\\btable\\\\-2\\\\b', re.IGNORECASE)}
         >>> mock.calls_for('Runtime._get_client')
@@ -247,7 +263,7 @@ class BaseApi:
         ...         return {'Buckets': [{'Name': "bucket-1"}, {'Name': "bucket-2"}]}
         >>> mock.mock(runtime, '_get_client', Client())
 
-        >>> pprint(runtime._get_generic_all_resources('s3', 'us-east-1', 'some-account', 'list_buckets', 'Buckets', 'Name'))
+        >>> pprint(runtime._get_generic_all_resources('s3', 'us-east-1', 'some-account', 'AWS::S3::Bucket', 'list_buckets', 'Buckets', 'Name'))
         {'bucket-1': re.compile('\\\\bbucket\\\\-1\\\\b', re.IGNORECASE),
          'bucket-2': re.compile('\\\\bbucket\\\\-2\\\\b', re.IGNORECASE)}
         >>> mock.calls_for('Runtime._get_client')
@@ -258,7 +274,7 @@ class BaseApi:
         ...         return {'Topics': [{'TopicArn': "arn:aws:sns:us-east-1:123456789012:my_topic"}]}
         >>> mock.mock(runtime, '_get_client', Client())
 
-        >>> pprint(runtime._get_generic_all_resources('sns', 'us-east-1', 'some-account', 'list_topics', 'Topics', 'TopicArn',
+        >>> pprint(runtime._get_generic_all_resources('sns', 'us-east-1', 'some-account', 'AWS::SNS::Topic', 'list_topics', 'Topics', 'TopicArn',
         ...                                           resource_converter=lambda topic_arn: BaseApi.ARN_RESOURCE_PATTERN.match(topic_arn).group(1)))
         {'my_topic': re.compile('\\\\bmy_topic\\\\b', re.IGNORECASE)}
         >>> mock.calls_for('Runtime._get_client')
@@ -271,10 +287,10 @@ class BaseApi:
         ...         return {'TableNames': []}
         >>> mock.mock(runtime, '_get_client', Client())
 
-        >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'list_tables', 'TableNames')
+        >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames')
         {}
         >>> mock.calls_for('eprint')
-        "warn: no dynamodb resources on 'us-east-1:some-account': list_tables()"
+        "warn: no dynamodb resources (AWS::DynamoDB::Table) on 'us-east-1:some-account': list_tables()"
         >>> mock.calls_for('Runtime._get_client')
         'dynamodb', 'us-east-1', 'some-account'
 
@@ -283,7 +299,7 @@ class BaseApi:
         ...         raise botocore.exceptions.NoCredentialsError()
         >>> mock.mock(runtime, '_get_client', Client())
 
-        >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'list_tables', 'TableNames')
+        >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames')
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
@@ -292,24 +308,35 @@ class BaseApi:
         'dynamodb', 'us-east-1', 'some-account'
         """
 
-        resources = self._get_cached_api_result(service, region=region, account=account, api_method=api_method, api_kwargs=api_kwargs)[api_attribute]
+        resources = {}
+
+        if self.cloudformation_template and template_type:
+            name_attribute = "{}Name".format(template_type.split('::')[-1])
+            for logical_id, properties in self.cloudformation_template.get('Resources', {}).items():
+                if properties.get('Type') == template_type:
+                    resource = properties.get('Properties', {}).get(name_attribute)
+                    resources[resource] = re.compile(BaseApi.RESOURCE_PATTERN.format(re.escape(resource)), re.IGNORECASE)
+
+        api_resources = self._get_cached_api_result(service, region=region, account=account, api_method=api_method, api_kwargs=api_kwargs)[api_attribute]
+
+        if api_inner_attribute:
+            api_resources = (resource[api_inner_attribute] for resource in api_resources)
+        if resource_converter:
+            api_resources = (resource_converter(resource) for resource in api_resources)
+
+        resources.update(
+                (resource, re.compile(BaseApi.RESOURCE_PATTERN.format(re.escape(resource)), re.IGNORECASE))
+                for resource in api_resources
+                )
+
         if not resources and warn:
             if not hasattr(self, '_no_resources_warnings'):
                 self._no_resources_warnings = set()
             warning_arguments = (service, region, account, api_method, frozenset(api_kwargs.items()))
             if warning_arguments not in self._no_resources_warnings:
-                eprint("warn: no {} resources on '{}:{}': {}({})".format(service, region, account, api_method, api_kwargs or ''))
+                eprint("warn: no {} resources ({}) on '{}:{}': {}({})".format(service, template_type, region, account, api_method, api_kwargs or ''))
                 self._no_resources_warnings.add(warning_arguments)
-
-        if api_inner_attribute:
-            resources = (resource[api_inner_attribute] for resource in resources)
-        if resource_converter:
-            resources = (resource_converter(resource) for resource in resources)
-
-        resources = dict(
-                (resource, re.compile(BaseApi.RESOURCE_PATTERN.format(re.escape(resource)), re.IGNORECASE))
-                for resource in resources
-                )
+            return {}
 
         return resources
 
@@ -317,7 +344,7 @@ class BaseApi:
         # buckets
         buckets = defaultdict(set)
         self._get_generic_resources(filename, file, buckets, region=region, account=account, resource_format="{}",
-                                    get_all_resources_method=partial(self._get_generic_all_resources, 's3', api_method='list_buckets', api_attribute='Buckets', api_inner_attribute='Name'))
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 's3', template_type='AWS::S3::Bucket', api_method='list_buckets', api_attribute='Buckets', api_inner_attribute='Name'))
         resources.update(buckets)
         # objects
         for bucket in buckets:
@@ -327,7 +354,7 @@ class BaseApi:
         # tables
         tables = defaultdict(set)
         self._get_generic_resources(filename, file, tables, region=region, account=account, resource_format="table/{}",
-                                    get_all_resources_method=partial(self._get_generic_all_resources, 'dynamodb', api_method='list_tables', api_attribute='TableNames'))
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'dynamodb', template_type='AWS::DynamoDB::Table', api_method='list_tables', api_attribute='TableNames'))
         resources.update(tables)
         # streams
         for table in tables:
@@ -336,15 +363,15 @@ class BaseApi:
             else:
                 table = re.sub(r"^table/", '', table)
                 self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="table/{}/stream/{{}}".format(table),
-                                            get_all_resources_method=partial(self._get_generic_all_resources, 'dynamodbstreams', api_method='list_streams', api_attribute='Streams', api_inner_attribute='StreamLabel', api_kwargs={'TableName': table}, warn=False))
+                                            get_all_resources_method=partial(self._get_generic_all_resources, 'dynamodbstreams', template_type=None, api_method='list_streams', api_attribute='Streams', api_inner_attribute='StreamLabel', api_kwargs={'TableName': table}, warn=False))
 
     def _get_kms_resources(self, filename, file, resources, region, account):
         # keys
         self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="key/{}",
-                                    get_all_resources_method=partial(self._get_generic_all_resources, 'kms', api_method='list_keys', api_attribute='Keys', api_inner_attribute='KeyId'))
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'kms', template_type='AWS::KMS::Key', api_method='list_keys', api_attribute='Keys', api_inner_attribute='KeyId'))
         # aliases
         self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="alias/{}",
-                                    get_all_resources_method=partial(self._get_generic_all_resources, 'kms', api_method='list_aliases', api_attribute='Aliases', api_inner_attribute='AliasName'))
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'kms', template_type='AWS::KMS::Alias', api_method='list_aliases', api_attribute='Aliases', api_inner_attribute='AliasName'))
 
     def _get_states_resources(self, filename, file, resources, region, account):
         # According to: https://forums.aws.amazon.com/thread.jspa?messageID=755476
@@ -352,11 +379,11 @@ class BaseApi:
         # state machines
         state_machines = defaultdict(set)
         self._get_generic_resources(filename, file, state_machines, region=region, account=account, resource_format="stateMachine:{}",
-                                    get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', api_method='list_state_machines', api_attribute='stateMachines', api_inner_attribute='name'))
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', template_type='AWS::StepFunctions::StateMachine', api_method='list_state_machines', api_attribute='stateMachines', api_inner_attribute='name'))
         resources.update(state_machines)
         # activities
         self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="activity:{}",
-                                    get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', api_method='list_activities', api_attribute='activities', api_inner_attribute='name'))
+                                    get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', template_type='AWS::StepFunctions::Activity', api_method='list_activities', api_attribute='activities', api_inner_attribute='name'))
         # executions
         state_machine_arns = dict(
                 (state_machine['name'], state_machine['stateMachineArn'])
@@ -369,7 +396,7 @@ class BaseApi:
             else:
                 state_machine = re.sub(r"^stateMachine:", '', state_machine)
                 self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="execution:{}:{{}}".format(state_machine),
-                                            get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', api_method='list_executions', api_attribute='executions', api_inner_attribute='name', api_kwargs={'stateMachineArn': state_machine_arns[state_machine]}))
+                                            get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', template_type=None, api_method='list_executions', api_attribute='executions', api_inner_attribute='name', api_kwargs={'stateMachineArn': state_machine_arns[state_machine]}))
 
     # { (service, region, account): client }
     CLIENTS_CACHE = {}

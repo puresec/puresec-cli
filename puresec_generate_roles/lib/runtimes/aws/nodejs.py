@@ -23,7 +23,7 @@ class NodejsRuntime(Base, NodejsApi):
         >>> from test.utils import normalize_dict
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
-        >>> runtime = NodejsRuntime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = NodejsRuntime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
 
         >>> runtime._get_services("filename.txt", StringIO(".S3()"))
         >>> pprint(normalize_dict(runtime._permissions))
@@ -163,7 +163,7 @@ class NodejsRuntime(Base, NodejsApi):
             2. None if argument doesn't exist
             3. '' if can't process argument value
 
-        >>> runtime = NodejsRuntime('path/to/function', config={}, session=None, default_region='default_region', default_account='default_account', environment={'var': "us-west-2"})
+        >>> runtime = NodejsRuntime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={'var': "us-west-2"})
 
         >>> runtime._get_variable_from_arguments('''{
         ...     region: bla(),
