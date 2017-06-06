@@ -1,2 +1,2 @@
 boto3
-aws-parsecf
+git+ssh://git@github.com/puresec/aws-parsecf.git
