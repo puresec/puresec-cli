@@ -175,18 +175,19 @@ class ServerlessFramework(Base):
         >>> mock.mock(None, 'eprint')
         >>> framework = ServerlessFramework("path/to/project", executable="ls", config={})
 
-        >>> framework._serverless_config_cache = {'service': {'provider': {'stage': 'dev'}, 'functions': {'functionName': {'name': 'function-name-dev-functionName'}}}}
+        >>> framework._serverless_config_cache = {'service': {'service': "serviceName"}}
         >>> framework._get_function_package_name('functionName')
-        'function-name'
+        'serviceName'
+
+        >>> framework._serverless_config_cache = {'service': {'service': "serviceName"}, 'package': {'individually': True}}
+        >>> framework._get_function_package_name('functionName')
+        'functionName'
         """
 
-        package_name = self._serverless_config['service']['functions'][name]['name'] # getting original name
-        suffix = "-{}-{}".format(self._serverless_config['service']['provider']['stage'], name)
-        # removing suffix
-        if package_name.endswith(suffix): # it will
-            package_name = package_name[:-len(suffix)]
-
-        return package_name
+        if not self._serverless_config.get('package', {}).get('individually', False):
+            return self._serverless_config['service']['service']
+        else:
+            return name
 
 Framework = ServerlessFramework
 
