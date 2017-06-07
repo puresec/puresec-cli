@@ -8,6 +8,8 @@ class Base:
         self.root = root
         self.config = config
 
+    MAX_FILE_SIZE = 5 * 1024 * 1024 # 5MB
+
     def _walk(self, processor, *args, **kwargs):
         """
         >>> from test.mock import Mock
@@ -40,6 +42,10 @@ class Base:
         for path, dirs, files in os.walk(self.root):
             for file in files:
                 filename = os.path.join(path, file)
+
+                if os.stat(filename).st_size > Base.MAX_FILE_SIZE:
+                    continue
+
                 with open(filename, 'r', errors='replace') as file:
                     processor(filename, file, *args, **kwargs)
 

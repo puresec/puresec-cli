@@ -315,7 +315,8 @@ class BaseApi:
             for logical_id, properties in self.cloudformation_template.get('Resources', {}).items():
                 if properties.get('Type') == template_type:
                     resource = properties.get('Properties', {}).get(name_attribute)
-                    resources[resource] = re.compile(BaseApi.RESOURCE_PATTERN.format(re.escape(resource)), re.IGNORECASE)
+                    if resource:
+                        resources[resource] = re.compile(BaseApi.RESOURCE_PATTERN.format(re.escape(resource)), re.IGNORECASE)
 
         api_resources = self._get_cached_api_result(service, region=region, account=account, api_method=api_method, api_kwargs=api_kwargs)[api_attribute]
 

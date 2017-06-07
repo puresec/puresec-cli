@@ -8,11 +8,11 @@ import os
 import re
 
 class ServerlessFramework(Base):
-    def __init__(self, path, executable, config):
+    def __init__(self, path, config, executable):
         if not executable:
             executable = 'serverless' # from environment (PATH)
 
-        super().__init__(path, executable, config)
+        super().__init__(path, config, executable)
 
     def __exit__(self, type, value, traceback):
         super().__exit__(type, value, traceback)
@@ -26,7 +26,7 @@ class ServerlessFramework(Base):
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
 
-        >>> ServerlessFramework("path/to/project", executable="ls", config={})._package()
+        >>> ServerlessFramework("path/to/project", {}, executable="ls")._package()
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
@@ -65,7 +65,7 @@ class ServerlessFramework(Base):
 
         >>> TemporaryDirectory = namedtuple('TemporaryDirectory', ('name',))
 
-        >>> framework = ServerlessFramework("path/to/project", executable="ls", config={})
+        >>> framework = ServerlessFramework("path/to/project", {}, executable="ls")
         >>> framework._package = lambda: None
 
         >>> framework._serverless_package = TemporaryDirectory('/tmp/package')
@@ -131,7 +131,7 @@ class ServerlessFramework(Base):
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
-        >>> framework = ServerlessFramework("path/to/project", executable="ls", config={})
+        >>> framework = ServerlessFramework("path/to/project", {}, executable="ls")
 
         >>> framework._serverless_config_cache = {'service': {'functions': {'otherFunction': {'name': 'other-function'}}}}
         >>> framework.get_function_name('function-name')
@@ -178,7 +178,7 @@ class ServerlessFramework(Base):
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
-        >>> framework = ServerlessFramework("path/to/project", executable="ls", config={})
+        >>> framework = ServerlessFramework("path/to/project", {}, executable="ls")
 
         >>> framework._serverless_config_cache = {'service': {'service': "serviceName"}}
         >>> framework._get_function_package_name('functionName')

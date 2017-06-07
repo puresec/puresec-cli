@@ -18,9 +18,9 @@ class Base:
 
         >>> Provider("path/to/project", config={}, resource_template="path/to/resource_template").resource_template
         'path/to/resource_template'
-        >>> Provider("path/to/project", config={}, framework=Framework("", 'ls', {})).resource_template
+        >>> Provider("path/to/project", config={}, framework=Framework("", {}, 'ls')).resource_template
         'path/to/resource_template'
-        >>> Provider("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", 'ls', {})).resource_template
+        >>> Provider("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", {}, 'ls')).resource_template
         'path/to/custom_resource_template'
         """
 

@@ -6,10 +6,10 @@ import os
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, path, executable, config):
+    def __init__(self, path, config, executable):
         self.path = path
-        self.executable = executable
         self.config = config
+        self.executable = executable
 
         self._init_executable()
 
@@ -23,21 +23,21 @@ class Base:
         >>> class Framework(Base):
         ...     pass
 
-        >>> Framework("path/to/project", None, {})
+        >>> Framework("path/to/project", {}, None)
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
         'error: no default framework executable, please supply with --framework-path'
 
         >>> mock.mock(None, 'which', None)
-        >>> Framework("path/to/project", 'serverless', {})
+        >>> Framework("path/to/project", {}, 'serverless')
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
         "error: could not find framework executable: 'serverless', try using --framework-path"
 
         >>> mock.mock(None, 'which', "/usr/bin/serverless")
-        >>> Framework("path/to/project", 'serverless', {}).executable
+        >>> Framework("path/to/project", {}, 'serverless').executable
         '/usr/bin/serverless'
         """
 

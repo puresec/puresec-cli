@@ -122,7 +122,7 @@ class AwsProvider(Base):
         >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json").session
         Session(region_name=None)
 
-        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", 'ls', {})).session
+        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}, 'ls')).session
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
@@ -196,6 +196,12 @@ class AwsProvider(Base):
             eprint("error: failed to get account from aws:\n{}".format(e))
             raise SystemExit(-1)
 
+    TEMPLATE_LOADERS = {
+            '.json': aws_parsecf.load_json,
+            '.yaml': aws_parsecf.load_yaml,
+            '.yml': aws_parsecf.load_yaml,
+            }
+
     def _init_cloudformation_template(self):
         """
         >>> from test.mock import Mock
@@ -233,9 +239,11 @@ class AwsProvider(Base):
             eprint("error: could not find CloudFormation template in: {}".format(self.resource_template))
             raise SystemExit(2)
 
+        _, filetype = os.path.splitext(self.resource_template)
+
         with resource_template:
             try:
-                self.cloudformation_template = aws_parsecf.load_json(resource_template, default_region=self.default_region)
+                self.cloudformation_template = AwsProvider.TEMPLATE_LOADERS[filetype](resource_template, default_region=self.default_region)
             except ValueError as e:
                 eprint("error: invalid CloudFormation template:\n{}".format(e))
                 raise SystemExit(-1)
@@ -262,7 +270,7 @@ class AwsProvider(Base):
         ...             self.processed = True
         >>> mock.mock(None, 'import_module', lambda name: RuntimeModule)
 
-        >>> handler = AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", 'ls', {}))
+        >>> handler = AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}, 'ls'))
         >>> handler.default_region = "default_region"
         >>> handler.default_account = "default_account"
         >>> mock.mock(handler, '_get_function_root', lambda name: "functions/{}".format(name))
