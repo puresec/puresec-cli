@@ -1,11 +1,9 @@
 from collections import defaultdict
-from functools import partial
 from io import BytesIO, BufferedRandom, TextIOWrapper
 from pprint import pformat
 from test.utils import normalize_dict, PrettySet
 import os
 import sys
-import types
 import weakref
 
 class Mock:
@@ -17,12 +15,15 @@ class Mock:
         self.opened = {}
 
         # default mocks
+        self.stderr = sys.stderr
+        sys.stderr = sys.stdout
         self.module.open = self.open
         if hasattr(self.module, 'os'):
             self.module.os.path.exists = self.exists
             self.module.os.walk = self.walk
 
     def __del__(self):
+        sys.stderr = self.stderr
         for stream in self.opened.values():
             stream.close()
         for module, name in tuple(self.mocks):

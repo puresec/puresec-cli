@@ -12,6 +12,7 @@ class Base:
 
     def _walk(self, processor, *args, **kwargs):
         """
+        >>> from collections import namedtuple
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
 
@@ -23,6 +24,7 @@ class Base:
         >>> mock.filesystem = {'path': {'to': {'function': {
         ...     'a': True,
         ...     'b': {'c': True, 'd': True},
+        ...     'e': True,
         ...     }}}}
         >>> with mock.open("path/to/function/a", 'w') as f:
         ...     f.write("a content") and None
@@ -32,6 +34,11 @@ class Base:
         ...     f.write("d content") and None
 
         >>> runtime = Runtime('path/to/function', config={})
+
+        >>> def stat(filename):
+        ...     return namedtuple('Stat', ('st_size',))(5*1024*1024 if filename == "path/to/function/e" else 512)
+        >>> mock.mock(runtime, '_stat', stat)
+
         >>> runtime._walk(runtime.processor, 'positional', custom_keyword='keyword')
         >>> sorted(processed)
         [('path/to/function/a', 'a content', 'positional', 'keyword'),
@@ -43,9 +50,13 @@ class Base:
             for file in files:
                 filename = os.path.join(path, file)
 
-                if os.stat(filename).st_size > Base.MAX_FILE_SIZE:
+                if self._stat(filename).st_size >= Base.MAX_FILE_SIZE:
                     continue
 
                 with open(filename, 'r', errors='replace') as file:
                     processor(filename, file, *args, **kwargs)
+
+    def _stat(self, filename):
+        """ Making os.stat testable again. """
+        return os.stat(filename)
 

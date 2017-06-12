@@ -5,7 +5,6 @@ from lib import arguments, providers
 from lib.utils import eprint
 import json
 import os
-import sys
 import yaml
 
 @contextmanager
@@ -79,3 +78,4 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+

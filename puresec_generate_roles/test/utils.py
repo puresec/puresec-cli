@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 class PrettySet(set):
     def __repr__(self):
         if not self:

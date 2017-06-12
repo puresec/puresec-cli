@@ -24,7 +24,7 @@ class BaseApi:
             's3':       lambda self: self._get_s3_resources,
             'sns':      lambda self: partial(self._get_generic_resources, resource_format="{}",
                                              get_all_resources_method=partial(self._get_generic_all_resources, 'sns', template_type='AWS::SNS::Topic', api_method='list_topics', api_attribute='Topics', api_inner_attribute='TopicArn',
-                                                                              resource_converter=lambda topic_arn: ARN_RESOURCE_PATTERN.match(topic_arn).group(1))),
+                                                                              resource_converter=lambda topic_arn: BaseApi.ARN_RESOURCE_PATTERN.match(topic_arn).group(1))),
             'states':   lambda self: self._get_states_resources,
             }
 
