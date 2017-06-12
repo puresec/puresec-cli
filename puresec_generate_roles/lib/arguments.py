@@ -1,10 +1,10 @@
 from argparse import ArgumentParser
-from lib import frameworks, providers
-from lib.runtimes import aws
+from puresec_generate_roles.lib import frameworks, providers
+from puresec_generate_roles.lib.runtimes import aws
 import os
 
 parser = ArgumentParser(
-    usage="bin/gen-roles",
+    usage="puresec-gen-roles",
     description="PureSec Role Generator"
 )
 

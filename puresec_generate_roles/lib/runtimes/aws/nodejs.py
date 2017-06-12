@@ -1,6 +1,6 @@
-from lib.utils import eprint, get_inner_parentheses
-from lib.runtimes.aws.base import Base
-from lib.runtimes.aws.nodejs_api import NodejsApi
+from puresec_generate_roles.lib.utils import eprint, get_inner_parentheses
+from puresec_generate_roles.lib.runtimes.aws.base import Base
+from puresec_generate_roles.lib.runtimes.aws.nodejs_api import NodejsApi
 import re
 
 class NodejsRuntime(Base, NodejsApi):
@@ -20,8 +20,8 @@ class NodejsRuntime(Base, NodejsApi):
         """
         >>> from io import StringIO
         >>> from pprint import pprint
-        >>> from test.utils import normalize_dict
-        >>> from test.mock import Mock
+        >>> from tests.utils import normalize_dict
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> runtime = NodejsRuntime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
 

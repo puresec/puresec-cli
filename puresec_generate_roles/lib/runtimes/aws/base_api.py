@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from functools import partial
-from lib.utils import eprint
+from puresec_generate_roles.lib.utils import eprint
 import abc
 import boto3
 import botocore
@@ -224,7 +224,7 @@ class BaseApi:
     def _get_generic_all_resources(self, service, region, account, template_type, api_method, api_attribute, api_inner_attribute=None, resource_converter=None, api_kwargs={}, warn=True):
         """
         >>> from pprint import pprint
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
 
         >>> class Runtime(BaseApi):
@@ -404,7 +404,7 @@ class BaseApi:
     def _get_client(self, service, region, account):
         """
         >>> from pprint import pprint
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
 
         >>> class Session:

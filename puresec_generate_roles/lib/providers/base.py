@@ -1,5 +1,5 @@
-from lib import arguments
-from lib.utils import eprint
+from puresec_generate_roles.lib import arguments
+from puresec_generate_roles.lib.utils import eprint
 import abc
 
 class Base:
@@ -9,7 +9,7 @@ class Base:
         """
         >>> class Provider(Base):
         ...     pass
-        >>> from lib.frameworks.base import Base as FrameworkBase
+        >>> from puresec_generate_roles.lib.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def get_resource_template(self):
         ...         return "path/to/resource_template"
@@ -50,13 +50,13 @@ class Base:
 
     def _get_function_root(self, name):
         """
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'input', "path/to/function")
 
         >>> class Provider(Base):
         ...     pass
-        >>> from lib.frameworks.base import Base as FrameworkBase
+        >>> from puresec_generate_roles.lib.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def __init__(self, has_function_root):
         ...         self.has_function_root = has_function_root

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from io import BytesIO, BufferedRandom, TextIOWrapper
 from pprint import pformat
-from test.utils import normalize_dict, PrettySet
+from tests.utils import normalize_dict, PrettySet
 import os
 import sys
 import weakref

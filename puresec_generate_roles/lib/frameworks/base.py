@@ -1,4 +1,4 @@
-from lib.utils import eprint
+from puresec_generate_roles.lib.utils import eprint
 from shutil import which
 import abc
 import os
@@ -16,7 +16,7 @@ class Base:
     # Override this if your framework doesn't require an executable (or doesn't want to receive one)
     def _init_executable(self):
         """
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
 

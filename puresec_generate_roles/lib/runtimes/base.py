@@ -13,7 +13,7 @@ class Base:
     def _walk(self, processor, *args, **kwargs):
         """
         >>> from collections import namedtuple
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
 
         >>> processed = []

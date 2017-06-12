@@ -1,5 +1,5 @@
-from lib.frameworks.base import Base
-from lib.utils import eprint
+from puresec_generate_roles.lib.frameworks.base import Base
+from puresec_generate_roles.lib.utils import eprint
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile, BadZipFile
@@ -22,7 +22,7 @@ class ServerlessFramework(Base):
 
     def _package(self):
         """
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
 
@@ -59,7 +59,7 @@ class ServerlessFramework(Base):
         """
         >>> from pprint import pprint
         >>> from collections import namedtuple
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
 
@@ -128,7 +128,7 @@ class ServerlessFramework(Base):
 
     def get_function_name(self, provider_function_name):
         """
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
         >>> framework = ServerlessFramework("path/to/project", {}, executable="ls")
@@ -175,7 +175,7 @@ class ServerlessFramework(Base):
 
     def _get_function_package_name(self, name):
         """
-        >>> from test.mock import Mock
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
         >>> framework = ServerlessFramework("path/to/project", {}, executable="ls")

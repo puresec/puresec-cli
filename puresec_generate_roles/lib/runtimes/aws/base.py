@@ -1,9 +1,9 @@
 from collections import defaultdict, namedtuple
 from copy import deepcopy
 from functools import reduce
-from lib.runtimes.base import Base as RuntimeBase
-from lib.runtimes.aws.base_api import BaseApi
-from lib.utils import deepmerge, eprint
+from puresec_generate_roles.lib.runtimes.base import Base as RuntimeBase
+from puresec_generate_roles.lib.runtimes.aws.base_api import BaseApi
+from puresec_generate_roles.lib.utils import deepmerge, eprint
 import abc
 import boto3
 import botocore
@@ -121,8 +121,8 @@ class Base(RuntimeBase, BaseApi):
         """ Expands '*' regions to all regions seen within the code.
 
         >>> from pprint import pprint
-        >>> from test.utils import normalize_dict
-        >>> from test.mock import Mock
+        >>> from tests.utils import normalize_dict
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
 
         >>> class Runtime(Base):
@@ -202,8 +202,8 @@ class Base(RuntimeBase, BaseApi):
         >>> from functools import partial
         >>> from pprint import pprint
         >>> from io import StringIO
-        >>> from test.mock import Mock
-        >>> from test.utils import normalize_dict
+        >>> from tests.mock import Mock
+        >>> from tests.utils import normalize_dict
         >>> mock = Mock(__name__)
 
         >>> class Runtime(Base):
@@ -244,7 +244,7 @@ class Base(RuntimeBase, BaseApi):
     def _match_resources_actions(self, service, resources, actions):
         """
         >>> from pprint import pprint
-        >>> from test.utils import normalize_dict
+        >>> from tests.utils import normalize_dict
 
         >>> class Runtime(Base):
         ...     pass
@@ -292,7 +292,7 @@ class Base(RuntimeBase, BaseApi):
         """ Merges region-less services and resource-less actions.
 
         >>> from pprint import pprint
-        >>> from test.utils import normalize_dict
+        >>> from tests.utils import normalize_dict
 
         >>> class Runtime(Base):
         ...     pass
@@ -365,8 +365,8 @@ class Base(RuntimeBase, BaseApi):
         """ Convert dict to match-all when there's at least one.
 
         >>> from pprint import pprint
-        >>> from test.utils import normalize_dict
-        >>> from test.mock import Mock
+        >>> from tests.utils import normalize_dict
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
 
         >>> class Runtime(Base):
@@ -425,8 +425,8 @@ class Base(RuntimeBase, BaseApi):
         """ Convert set to match-all when there's at least one.
 
         >>> from pprint import pprint
-        >>> from test.utils import normalize_dict
-        >>> from test.mock import Mock
+        >>> from tests.utils import normalize_dict
+        >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
 
         >>> class Runtime(Base):

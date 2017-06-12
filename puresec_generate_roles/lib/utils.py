@@ -1,8 +1,20 @@
+from termcolor import colored
 import re
 import sys
 
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
+EPRINT_FORMATTING = tuple(
+    (re.compile(pattern), outcome)
+    for pattern, outcome in (
+            (r"^error:", colored("error:", 'red')),
+            (r"^warn:",  colored("warn:",  'yellow')),
+            (r"^info:",  colored("info:",  'green')),
+    )
+)
+
+def eprint(message):
+    for pattern, outcome in EPRINT_FORMATTING:
+        message = pattern.sub(outcome, message)
+    print(message, file=sys.stderr)
 
 def deepmerge(a, b):
     """
