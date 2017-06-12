@@ -27,7 +27,11 @@ def generate_framework(path, args, config):
     if not args.framework:
         yield None
     else:
-        with import_module("lib.frameworks.{}".format(args.framework)).Framework(path, config, executable=args.framework_path) as framework:
+        framework = import_module("lib.frameworks.{}".format(args.framework)).Framework(
+            path, config,
+            executable=args.framework_path,
+        )
+        with framework:
             yield framework
 
 @contextmanager
@@ -54,13 +58,20 @@ def generate_provider(path, args, framework, config):
             raise SystemExit(2)
         provider = args.provider
 
-    with import_module("lib.providers.{}".format(provider)).Provider(path, config, resource_template=args.resource_template, runtime=args.runtime, framework=framework) as provider:
+    provider = import_module("lib.providers.{}".format(provider)).Provider(
+        path, config,
+        resource_template=args.resource_template,
+        runtime=args.runtime,
+        framework=framework,
+        function=args.function,
+    )
+    with provider:
         yield provider
 
 DUMPERS = {
-        'json': partial(json.dumps, indent=2),
-        'yaml': partial(yaml.dump, default_flow_style=False),
-        }
+    'json': partial(json.dumps, indent=2),
+    'yaml': partial(yaml.dump, default_flow_style=False),
+}
 
 def main(argv=None):
     args = arguments.parser.parse_args(argv)

@@ -5,7 +5,7 @@ import abc
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, path, config, resource_template=None, runtime=None, framework=None):
+    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None):
         """
         >>> class Provider(Base):
         ...     pass
@@ -29,6 +29,7 @@ class Base:
         self.resource_template = resource_template
         self.runtime = runtime
         self.framework = framework
+        self.function = function
 
         if not self.resource_template and self.framework:
             self.resource_template = self.framework.get_resource_template()

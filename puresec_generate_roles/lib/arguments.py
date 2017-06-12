@@ -4,9 +4,10 @@ from lib.runtimes import aws
 import os
 
 parser = ArgumentParser(
-        usage="bin/gen-roles",
-        description="PureSec Role Generator"
-        )
+    usage="bin/gen-roles",
+    description="PureSec Role Generator"
+)
+
 parser.add_argument('path', nargs='*', default=[os.getcwd()],
                     help="Path to the root directory of your project")
 
@@ -24,6 +25,9 @@ parser.add_argument('--framework', '-f', choices=frameworks.__all__,
 
 parser.add_argument('--framework-path', '-e',
                     help="Path to the framework's executable, usually not needed.")
+
+parser.add_argument('--function',
+                    help="Only generate roles for a specific function.")
 
 parser.add_argument('--format', choices=['json', 'yaml'],
                     help="Wanted output format, defaults to framework/provider guesswork")

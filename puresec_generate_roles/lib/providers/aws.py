@@ -9,7 +9,7 @@ import os
 import re
 
 class AwsProvider(Base):
-    def __init__(self, path, config, resource_template=None, runtime=None, framework=None):
+    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None):
         """
         >>> from test.mock import Mock
         >>> mock = Mock(__name__)
@@ -29,7 +29,7 @@ class AwsProvider(Base):
         'warn: ignoring --runtime when --resource-template or --framework supplied'
         """
 
-        super().__init__(path, config, resource_template=resource_template, runtime=runtime, framework=framework)
+        super().__init__(path, config, resource_template=resource_template, runtime=runtime, framework=framework, function=function)
 
         if not self.resource_template and not self.runtime:
             eprint("error: must supply either --resource-template, --runtime, or --framework")
@@ -101,8 +101,7 @@ class AwsProvider(Base):
                         }
                     })
 
-        if resources:
-            return {'Resources': resources}
+        return {'Resources': resources}
 
     def _init_session(self):
         """
@@ -406,6 +405,29 @@ class AwsProvider(Base):
         {'a': 1, 'b': 2}
         >>> handler._function_runtimes['functionName'].processed
         True
+
+        >>> handler.function = 'functionOne'
+        >>> handler.cloudformation_template = {
+        ...     'Resources': {
+        ...         'FunctionOneId': {
+        ...             'Type': 'AWS::Lambda::Function',
+        ...             'Properties': {
+        ...                 'FunctionName': "-functionOne",
+        ...                 'Runtime': "nodejs4.3"
+        ...             }
+        ...         },
+        ...         'FunctionTwoId': {
+        ...             'Type': 'AWS::Lambda::Function',
+        ...             'Properties': {
+        ...                 'FunctionName': "-functionTwo",
+        ...                 'Runtime': "nodejs4.3"
+        ...             }
+        ...         }
+        ...     }
+        ... }
+        >>> handler.process()
+        >>> list(handler._function_runtimes.keys())
+        ['functionOne']
         """
         self._function_real_names = {}
         self._function_runtimes = {}
@@ -434,6 +456,10 @@ class AwsProvider(Base):
                     name = self.framework.get_function_name(real_name)
                 else:
                     name = real_name
+
+                if self.function and self.function != name:
+                    continue
+
                 self._function_real_names[name] = real_name
 
                 root = os.path.join(self.path, self._get_function_root(name))
