@@ -25,5 +25,5 @@ Development
 
     pip install -r requirements.txt
     nosetests -c nose.cfg
-    puresec_generate_roles/main.py --help
+    python -m puresec_generate_roles --help
 
