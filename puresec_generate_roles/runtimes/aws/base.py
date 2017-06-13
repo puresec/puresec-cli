@@ -1,9 +1,9 @@
 from collections import defaultdict, namedtuple
 from copy import deepcopy
 from functools import reduce
-from puresec_generate_roles.lib.runtimes.base import Base as RuntimeBase
-from puresec_generate_roles.lib.runtimes.aws.base_api import BaseApi
-from puresec_generate_roles.lib.utils import deepmerge, eprint
+from puresec_generate_roles.runtimes.base import Base as RuntimeBase
+from puresec_generate_roles.runtimes.aws.base_api import BaseApi
+from puresec_generate_roles.utils import deepmerge, eprint
 import abc
 import boto3
 import botocore

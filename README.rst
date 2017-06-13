@@ -9,7 +9,7 @@ Install
 
 .. code:: bash
 
-   pip install --process-dependency-links git+ssh://git@github.com/puresec/puresec-generate-roles.git
+   pip3 install --process-dependency-links git+https://github.com/puresec/puresec-generate-roles.git
 
 Usage
 -----
@@ -25,3 +25,5 @@ Development
 
     pip install -r requirements.txt
     nosetests -c nose.cfg
+    puresec_generate_roles/main.py --help
+

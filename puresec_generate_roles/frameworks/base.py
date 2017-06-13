@@ -1,4 +1,4 @@
-from puresec_generate_roles.lib.utils import eprint
+from puresec_generate_roles.utils import eprint
 from shutil import which
 import abc
 import os

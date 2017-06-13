@@ -1,5 +1,5 @@
-from puresec_generate_roles.lib import arguments
-from puresec_generate_roles.lib.utils import eprint
+from puresec_generate_roles import arguments
+from puresec_generate_roles.utils import eprint
 import abc
 
 class Base:
@@ -9,7 +9,7 @@ class Base:
         """
         >>> class Provider(Base):
         ...     pass
-        >>> from puresec_generate_roles.lib.frameworks.base import Base as FrameworkBase
+        >>> from puresec_generate_roles.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def get_resource_template(self):
         ...         return "path/to/resource_template"
@@ -56,7 +56,7 @@ class Base:
 
         >>> class Provider(Base):
         ...     pass
-        >>> from puresec_generate_roles.lib.frameworks.base import Base as FrameworkBase
+        >>> from puresec_generate_roles.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def __init__(self, has_function_root):
         ...         self.has_function_root = has_function_root

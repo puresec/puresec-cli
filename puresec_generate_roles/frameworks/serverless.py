@@ -1,5 +1,5 @@
-from puresec_generate_roles.lib.frameworks.base import Base
-from puresec_generate_roles.lib.utils import eprint
+from puresec_generate_roles.frameworks.base import Base
+from puresec_generate_roles.utils import eprint
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile, BadZipFile

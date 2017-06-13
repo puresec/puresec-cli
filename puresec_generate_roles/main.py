@@ -1,8 +1,16 @@
+#!/usr/bin/env python3
+
+import sys
+
+if sys.version_info.major != 3:
+    print("Sorry, requires Python 3.x")
+    sys.exit(1)
+
 from contextlib import contextmanager
 from functools import partial
 from importlib import import_module
-from puresec_generate_roles.lib import arguments, providers
-from puresec_generate_roles.lib.utils import eprint
+from puresec_generate_roles import arguments, providers
+from puresec_generate_roles.utils import eprint
 import json
 import os
 import yaml
@@ -27,7 +35,7 @@ def generate_framework(path, args, config):
     if not args.framework:
         yield None
     else:
-        framework = import_module("puresec_generate_roles.lib.frameworks.{}".format(args.framework)).Framework(
+        framework = import_module("puresec_generate_roles.frameworks.{}".format(args.framework)).Framework(
             path, config,
             executable=args.framework_path,
         )
@@ -58,7 +66,7 @@ def generate_provider(path, args, framework, config):
             raise SystemExit(2)
         provider = args.provider
 
-    provider = import_module("puresec_generate_roles.lib.providers.{}".format(provider)).Provider(
+    provider = import_module("puresec_generate_roles.providers.{}".format(provider)).Provider(
         path, config,
         resource_template=args.resource_template,
         runtime=args.runtime,

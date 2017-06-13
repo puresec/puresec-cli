@@ -16,12 +16,13 @@ setup(
         ],
     },
     install_requires=[
+        'PyYAML',
         'boto3',
         'aws-parsecf==1.0.0',
         'termcolor',
     ],
     dependency_links=[
-        'git+ssh://git@github.com/puresec/aws-parsecf.git#egg=aws-parsecf-1.0.0',
+        'git+https://github.com/puresec/aws-parsecf.git#egg=aws-parsecf-1.0.0',
     ],
 )
 

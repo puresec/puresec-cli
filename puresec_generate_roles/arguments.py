@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
-from puresec_generate_roles.lib import frameworks, providers
-from puresec_generate_roles.lib.runtimes import aws
+from puresec_generate_roles import frameworks, providers
+from puresec_generate_roles.runtimes import aws
 import os
 
 parser = ArgumentParser(

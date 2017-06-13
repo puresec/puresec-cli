@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from functools import partial
-from puresec_generate_roles.lib.utils import eprint
+from puresec_generate_roles.utils import eprint
 import abc
 import boto3
 import botocore
