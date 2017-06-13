@@ -12,7 +12,7 @@ setup(
     packages=find_packages(exclude=['tests*']),
     entry_points={
         'console_scripts': [
-            'puresec-gen-roles=puresec_generate_roles.main:main',
+            'puresec-gen-roles=puresec_generate_roles:main',
         ],
     },
     install_requires=[
