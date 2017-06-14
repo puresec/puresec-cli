@@ -50,8 +50,8 @@ class GenerateRoles(Base):
         parser.add_argument('--format', choices=['json', 'yaml'],
                             help="Wanted output format, defaults to framework/provider guesswork")
 
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, args, stats):
+        super().__init__(args, stats)
 
     @contextmanager
     def generate_config(self, path):
@@ -123,9 +123,15 @@ class GenerateRoles(Base):
         for path in self.args.path:
             if len(self.args.path) > 1:
                 print("{}:".format(path))
+
             with self.generate_config(path) as config:
+
                 with self.generate_framework(path, config) as framework:
+                    self.stats.frameworks.append(framework)
+
                     with self.generate_provider(path, framework, config) as provider:
+                        self.stats.providers.append(provider)
+
                         provider.process()
 
                         output_format = self.args.format or (framework and framework.format) or provider.format or 'json'

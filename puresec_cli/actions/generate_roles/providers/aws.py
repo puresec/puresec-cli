@@ -1,3 +1,4 @@
+from collections import defaultdict
 from importlib import import_module
 from puresec_cli.actions.generate_roles.providers.base import Base
 from puresec_cli.actions.generate_roles.runtimes import aws as runtimes
@@ -103,6 +104,10 @@ class AwsProvider(Base):
 
         return {'Resources': resources}
 
+    @property
+    def runtimes(self):
+        return dict(getattr(self, '_runtime_counter', {}))
+
     def _init_session(self):
         """
         >>> from tests.mock import Mock
@@ -125,7 +130,7 @@ class AwsProvider(Base):
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
-        'error: failed to create aws session:\\nThe config profile (default_profile) could not be found'
+        'error: failed to create aws session:\\n{}', ProfileNotFound('The config profile (default_profile) could not be found',)
         """
         if self.framework:
             profile = self.framework.get_default_profile()
@@ -135,7 +140,7 @@ class AwsProvider(Base):
         try:
             self.session = boto3.Session(profile_name=profile)
         except botocore.exceptions.BotoCoreError as e:
-            eprint("error: failed to create aws session:\n{}".format(e))
+            eprint("error: failed to create aws session:\n{}", e)
             raise SystemExit(-1)
 
     def _init_default_region(self):
@@ -192,7 +197,7 @@ class AwsProvider(Base):
         try:
             self.default_account = self.session.client('sts').get_caller_identity()['Account']
         except botocore.exceptions.BotoCoreError as e:
-            eprint("error: failed to get account from aws:\n{}".format(e))
+            eprint("error: failed to get account from aws:\n{}", e)
             raise SystemExit(-1)
 
     TEMPLATE_LOADERS = {
@@ -212,7 +217,7 @@ class AwsProvider(Base):
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
-        'error: could not find CloudFormation template in: path/to/cloudformation.json'
+        'error: could not find CloudFormation template in: {}', 'path/to/cloudformation.json'
 
         >>> with mock.open("path/to/cloudformation.json", 'w') as f:
         ...     f.write("not a JSON") and None
@@ -220,7 +225,7 @@ class AwsProvider(Base):
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
-        'error: invalid CloudFormation template:\\nExpecting value: line 1 column 1 (char 0)'
+        'error: invalid CloudFormation template:\\n{}', ValueError('Expecting value: line 1 column 1 (char 0)',)
 
         >>> with mock.open("path/to/cloudformation.json", 'w') as f:
         ...     f.write('{ "a": { "b": 1 } }') and None
@@ -232,19 +237,19 @@ class AwsProvider(Base):
             self.cloudformation_template = None
             return
 
+        _, filetype = os.path.splitext(self.resource_template)
+
         try:
             resource_template = open(self.resource_template, 'r', errors='replace')
         except FileNotFoundError:
-            eprint("error: could not find CloudFormation template in: {}".format(self.resource_template))
+            eprint("error: could not find CloudFormation template in: {}", self.resource_template)
             raise SystemExit(2)
-
-        _, filetype = os.path.splitext(self.resource_template)
 
         with resource_template:
             try:
                 self.cloudformation_template = AwsProvider.TEMPLATE_LOADERS[filetype](resource_template, default_region=self.default_region)
             except ValueError as e:
-                eprint("error: invalid CloudFormation template:\n{}".format(e))
+                eprint("error: invalid CloudFormation template:\n{}", e)
                 raise SystemExit(-1)
 
     def process(self):
@@ -296,7 +301,7 @@ class AwsProvider(Base):
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
-        'error: lambda name not specified at `ResourceId`'
+        'error: lambda name not specified at `{}`', 'ResourceId'
 
         >>> handler.cloudformation_template = {
         ...     'Resources': {
@@ -312,7 +317,7 @@ class AwsProvider(Base):
         Traceback (most recent call last):
         SystemExit: 2
         >>> mock.calls_for('eprint')
-        'error: lambda runtime not specified for `functionName`'
+        'error: lambda runtime not specified for `{}`', 'functionName'
 
         >>> handler.cloudformation_template = {
         ...     'Resources': {
@@ -327,7 +332,7 @@ class AwsProvider(Base):
         ... }
         >>> handler.process()
         >>> mock.calls_for('eprint')
-        'warn: lambda runtime not supported: `abc` (for `functionName`), sorry :('
+        'warn: lambda runtime not supported: `{}` (for `{}`), sorry :(', 'abc', 'functionName'
         >>> handler._function_runtimes
         {}
 
@@ -431,6 +436,7 @@ class AwsProvider(Base):
         """
         self._function_real_names = {}
         self._function_runtimes = {}
+        self._runtime_counter = defaultdict(int)
 
         if self.cloudformation_template:
             resources = self.cloudformation_template.get('Resources', {})
@@ -450,7 +456,7 @@ class AwsProvider(Base):
                 # Getting name
                 real_name = resource_config.get('Properties', {}).get('FunctionName')
                 if not real_name:
-                    eprint("error: lambda name not specified at `{}`".format(resource_id))
+                    eprint("error: lambda name not specified at `{}`", resource_id)
                     raise SystemExit(2)
                 if self.framework:
                     name = self.framework.get_function_name(real_name)
@@ -466,11 +472,14 @@ class AwsProvider(Base):
                 # Getting runtime
                 runtime = resource_config.get('Properties', {}).get('Runtime')
                 if not runtime:
-                    eprint("error: lambda runtime not specified for `{}`".format(name))
+                    eprint("error: lambda runtime not specified for `{}`", name)
                     raise SystemExit(2)
+
                 runtime = re.sub(r"[\d\.]+$", '', runtime) # ignoring runtime version (e.g nodejs4.3)
+                self._runtime_counter[runtime] += 1
+
                 if runtime not in runtimes.__all__:
-                    eprint("warn: lambda runtime not supported: `{}` (for `{}`), sorry :(".format(runtime, name))
+                    eprint("warn: lambda runtime not supported: `{}` (for `{}`), sorry :(", runtime, name)
                     continue
                 # Getting environment
                 environment = resource_config.get('Properties', {}).get('Environment', {}).get('Variables', {})

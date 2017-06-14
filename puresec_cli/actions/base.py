@@ -15,8 +15,9 @@ class Base:
     def add_arguments(parser):
         pass
 
-    def __init__(self, args):
+    def __init__(self, args, stats):
         self.args = args
+        self.stats = stats
 
     @abc.abstractmethod
     def run(self):

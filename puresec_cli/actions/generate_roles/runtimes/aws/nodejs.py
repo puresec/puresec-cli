@@ -70,7 +70,7 @@ class NodejsRuntime(Base, NodejsApi):
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'*': {'default_account': {}}}}
         >>> mock.calls_for('eprint')
-        'warn: incomprehensive region: {\\n        region: getRegion()\\n    } (in filename.js)'
+        'warn: incomprehensive region: {} (in {})', '{\\n        region: getRegion()\\n    }', 'filename.js'
 
         >>> runtime._permissions.clear()
         >>> runtime._get_services("filename.js", StringIO('''
@@ -82,7 +82,7 @@ class NodejsRuntime(Base, NodejsApi):
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'*': {'default_account': {}}}}
         >>> mock.calls_for('eprint')
-        "warn: incomprehensive region: {\\n        region: 'us-' + region\\n    } (in filename.js)"
+        'warn: incomprehensive region: {} (in {})', "{\\n        region: 'us-' + region\\n    }", 'filename.js'
 
         >>> runtime._permissions.clear()
         >>> runtime._get_services("filename.js", StringIO('''
@@ -94,7 +94,7 @@ class NodejsRuntime(Base, NodejsApi):
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'default_region': {'*': {}}}}
         >>> mock.calls_for('eprint')
-        'warn: unknown account: {\\n        accessKeyId: "some key"\\n    } (in filename.js)'
+        'warn: unknown account: {} (in {})', '{\\n        accessKeyId: "some key"\\n    }', 'filename.js'
         """
 
         if not NodejsRuntime.FILENAME_PATTERN.search(filename):
@@ -110,14 +110,14 @@ class NodejsRuntime(Base, NodejsApi):
                     if region is None:
                         region = self.default_region
                     elif not region:
-                        eprint("warn: incomprehensive region: {} (in {})".format(arguments, filename))
+                        eprint("warn: incomprehensive region: {} (in {})", arguments, filename)
                         region = '*'
                     elif not any(pattern.match(region) for pattern in NodejsRuntime.REGION_PATTERNS.values()):
-                        eprint("warn: incomprehensive region: {} (in {})".format(arguments, filename))
+                        eprint("warn: incomprehensive region: {} (in {})", arguments, filename)
                         region = '*'
                     # account
                     if NodejsRuntime.AUTH_PATTERN.search(arguments):
-                        eprint("warn: unknown account: {} (in {})".format(arguments, filename))
+                        eprint("warn: unknown account: {} (in {})", arguments, filename)
                         account = '*'
                     else:
                         account = self.default_account

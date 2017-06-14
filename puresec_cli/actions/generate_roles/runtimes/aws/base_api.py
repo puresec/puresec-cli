@@ -204,7 +204,7 @@ class BaseApi:
     def _get_cached_api_result(self, service, region, account, api_method, api_kwargs={}):
         client = self._get_client(service, region, account)
         if client is None:
-            eprint("error: cannot create {} client for region: '{}', account: '{}'".format(service, region, account))
+            eprint("error: cannot create {} client for region: '{}', account: '{}'", service, region, account)
             return
 
         cache_key = (client, api_method, frozenset(api_kwargs.items()))
@@ -215,7 +215,7 @@ class BaseApi:
             try:
                 result = BaseApi.RESOURCE_CACHE[cache_key] = getattr(client, api_method)(**api_kwargs)
             except botocore.exceptions.BotoCoreError as e:
-                eprint("error: failed to list resources on {}:\n{}".format(service, e))
+                eprint("error: failed to list resources on {}:\n{}", service, e)
                 raise SystemExit(-1)
 
         return result
@@ -290,7 +290,7 @@ class BaseApi:
         >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames')
         {}
         >>> mock.calls_for('eprint')
-        "warn: no dynamodb resources (AWS::DynamoDB::Table) on 'us-east-1:some-account': list_tables()"
+        "warn: no {} resources ({}) on '{}:{}': {}({})", 'dynamodb', 'AWS::DynamoDB::Table', 'us-east-1', 'some-account', 'list_tables', ''
         >>> mock.calls_for('Runtime._get_client')
         'dynamodb', 'us-east-1', 'some-account'
 
@@ -303,7 +303,7 @@ class BaseApi:
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
-        'error: failed to list resources on dynamodb:\\nUnable to locate credentials'
+        'error: failed to list resources on {}:\\n{}', 'dynamodb', NoCredentialsError('Unable to locate credentials',)
         >>> mock.calls_for('Runtime._get_client')
         'dynamodb', 'us-east-1', 'some-account'
         """
@@ -335,7 +335,7 @@ class BaseApi:
                 self._no_resources_warnings = set()
             warning_arguments = (service, region, account, api_method, frozenset(api_kwargs.items()))
             if warning_arguments not in self._no_resources_warnings:
-                eprint("warn: no {} resources ({}) on '{}:{}': {}({})".format(service, template_type, region, account, api_method, api_kwargs or ''))
+                eprint("warn: no {} resources ({}) on '{}:{}': {}({})", service, template_type, region, account, api_method, api_kwargs or '')
                 self._no_resources_warnings.add(warning_arguments)
             return {}
 

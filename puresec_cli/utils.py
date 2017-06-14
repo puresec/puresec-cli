@@ -2,6 +2,10 @@ from termcolor import colored
 import re
 import sys
 
+eprinted = []
+
+ANONYMIZED_VALUE = "<ANONYMIZED>"
+
 EPRINT_FORMATTING = tuple(
     (re.compile(pattern), outcome)
     for pattern, outcome in (
@@ -11,9 +15,56 @@ EPRINT_FORMATTING = tuple(
     )
 )
 
-def eprint(message):
+def eprint(message, *format_args, **format_kwargs):
+    """
+    >>> from tests.mock import Mock
+    >>> mock = Mock(__name__)
+
+    >>> eprint("hello")
+    hello
+    >>> eprinted
+    ['hello']
+
+    >>> eprinted.clear()
+
+    >>> eprint("hello: {}", "John")
+    hello: John
+    >>> eprinted
+    ['hello: <ANONYMIZED>']
+
+    >>> eprinted.clear()
+
+    >>> eprint("hello: {name}", name="John")
+    hello: John
+    >>> eprinted
+    ['hello: <ANONYMIZED>']
+
+    >>> eprinted.clear()
+
+    >>> eprint("exception: {}", SystemExit(1))
+    exception: 1
+    >>> eprinted
+    ['exception: 1']
+
+    >>> eprinted.clear()
+
+    >>> eprint("exception: {exc}", exc=SystemExit(1))
+    exception: 1
+    >>> eprinted
+    ['exception: 1']
+    """
+
+    eprinted.append(
+        message.format(
+            *(value if isinstance(value, BaseException) else ANONYMIZED_VALUE for value in format_args),
+            **dict((key, value if isinstance(value, BaseException) else ANONYMIZED_VALUE) for key, value in format_kwargs.items())
+        )
+    )
+
+    message = message.format(*format_args, **format_kwargs)
     for pattern, outcome in EPRINT_FORMATTING:
         message = pattern.sub(outcome, message)
+
     print(message, file=sys.stderr)
 
 def deepmerge(a, b):
