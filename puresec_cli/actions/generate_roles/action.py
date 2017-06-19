@@ -1,11 +1,9 @@
 from contextlib import contextmanager
-from functools import partial
 from importlib import import_module
 from puresec_cli.actions.base import Base
 from puresec_cli.actions.generate_roles import providers, frameworks
 from puresec_cli.actions.generate_roles.runtimes import aws
 from puresec_cli.utils import eprint
-import json
 import os
 import yaml
 
@@ -47,8 +45,9 @@ class GenerateRoles(Base):
         parser.add_argument('--function',
                             help="Only generate roles for a specific function.")
 
-        parser.add_argument('--format', choices=['json', 'yaml'],
-                            help="Wanted output format, defaults to framework/provider guesswork")
+        parser.add_argument('--yes', '-y', action='store_true',
+                            help="Yes for all - overwrite files, remove old roles, etc.")
+
 
     def __init__(self, args, stats):
         super().__init__(args, stats)
@@ -76,6 +75,7 @@ class GenerateRoles(Base):
             framework = import_module("puresec_cli.actions.generate_roles.frameworks.{}".format(self.args.framework)).Framework(
                 path, config,
                 executable=self.args.framework_path,
+                yes=self.args.yes,
             )
             with framework:
                 yield framework
@@ -110,14 +110,10 @@ class GenerateRoles(Base):
             runtime=self.args.runtime,
             framework=framework,
             function=self.args.function,
+            yes=self.args.yes,
         )
         with provider:
             yield provider
-
-    DUMPERS = {
-        'json': partial(json.dumps, indent=2),
-        'yaml': partial(yaml.dump, default_flow_style=False),
-    }
 
     def run(self):
         for path in self.args.path:
@@ -133,9 +129,10 @@ class GenerateRoles(Base):
                         self.stats.providers.append(provider)
 
                         provider.process()
-
-                        output_format = self.args.format or (framework and framework.format) or provider.format or 'json'
-                        print(GenerateRoles.DUMPERS[output_format](provider.output))
+                        if framework:
+                            framework.result(provider)
+                        else:
+                            provider.result()
 
 Action = GenerateRoles
 

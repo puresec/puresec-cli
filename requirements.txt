@@ -1,4 +1,5 @@
 PyYAML
+ruamel.yaml
 termcolor
 analytics-python
 # AWS

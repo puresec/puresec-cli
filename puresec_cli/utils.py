@@ -169,3 +169,28 @@ def get_inner_parentheses(value):
                 return None
     return None
 
+INPUT_QUERY_OPTIONS = {"yes": True, "y": True, "ye": True,
+                       "no": False, "n": False}
+INPUT_QUERY_DEFAULTS = {None: " [y/n] ",
+                        True: " [Y/n] ",
+                        False: " [y/N] "}
+
+def input_query(question, default=None):
+    question += INPUT_QUERY_DEFAULTS[default]
+
+    while True:
+        sys.stderr.write(question)
+        choice = input().lower()
+        if default is not None and choice == '':
+            return INPUT_QUERY_OPTIONS[default]
+        elif choice in INPUT_QUERY_OPTIONS:
+            return INPUT_QUERY_OPTIONS[choice]
+        else:
+            sys.stderr.write("Please respond with 'yes' or 'no' (or 'y' or 'n').\n")
+
+def capitalize(string):
+    return "{}{}".format(string[0].upper(), string[1:])
+
+def lowerize(string):
+    return "{}{}".format(string[0].lower(), string[1:])
+

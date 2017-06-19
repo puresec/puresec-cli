@@ -1,16 +1,19 @@
 from collections import defaultdict
+from functools import partial
 from importlib import import_module
 from puresec_cli.actions.generate_roles.providers.base import Base
 from puresec_cli.actions.generate_roles.runtimes import aws as runtimes
-from puresec_cli.utils import eprint
+from puresec_cli.utils import eprint, capitalize
 import aws_parsecf
 import boto3
 import botocore
+import json
 import os
 import re
+import yaml
 
 class AwsProvider(Base):
-    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None):
+    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None, yes=False):
         """
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
@@ -30,7 +33,14 @@ class AwsProvider(Base):
         'warn: ignoring --runtime when --resource-template or --framework supplied'
         """
 
-        super().__init__(path, config, resource_template=resource_template, runtime=runtime, framework=framework, function=function)
+        super().__init__(
+            path, config,
+            resource_template=resource_template,
+            runtime=runtime,
+            framework=framework,
+            function=function,
+            yes=yes
+        )
 
         if not self.resource_template and not self.runtime:
             eprint("error: must supply either --resource-template, --runtime, or --framework")
@@ -44,32 +54,36 @@ class AwsProvider(Base):
         self._init_cloudformation_template()
 
     @property
-    def format(self):
-        return 'json'
+    def permissions(self):
+        return dict((name, runtime.permissions) for name, runtime in self._function_runtimes.items())
+
+    TEMPLATE_DUMPERS = {
+        '.json': partial(json.dumps, indent=2),
+        '.yml': partial(yaml.dump, default_flow_style=False),
+        '.yaml': partial(yaml.dump, default_flow_style=False),
+    }
 
     @property
-    def output(self):
-        resources = {}
-        for name, runtime in self._function_runtimes.items():
-            real_name = self._function_real_names[name]
-
-            role = resources["{}Role".format(name)] = {
-                    'Type': 'AWS:IAM:Role',
-                    'Properties': {
-                        'Path': '/',
-                        'RoleName': real_name,
-                        'AssumeRolePolicyDocument': {
-                            'Version': '2012-10-17',
-                            'Statement': [
-                                {
-                                    'Effect': 'Allow',
-                                    'Action': 'sts:AssumeRole',
-                                    'Principal': {'Service': 'lambda.amazonaws.com'},
-                                    }
-                                ]
+    def roles(self):
+        roles = {}
+        for name, function_permissions in self.permissions.items():
+            role = roles["PureSec{}Role".format(capitalize(name))] = {
+                'Type': 'AWS::IAM::Role',
+                'Properties': {
+                    'Path': '/',
+                    'RoleName': "PureSec{}".format(capitalize(name)),
+                    'AssumeRolePolicyDocument': {
+                        'Version': '2012-10-17',
+                        'Statement': [
+                            {
+                                'Effect': 'Allow',
+                                'Action': 'sts:AssumeRole',
+                                'Principal': {'Service': 'lambda.amazonaws.com'},
                             }
-                        }
+                        ]
                     }
+                }
+            }
 
             policies = role['Properties']['Policies'] = [{
                 'PolicyName': "CreateAndWriteToLogStream",
@@ -79,30 +93,32 @@ class AwsProvider(Base):
                         {
                             'Effect': 'Allow',
                             'Action': 'logs:CreateLogStream',
-                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*".format(self.default_region, self.default_account, real_name),
-                            },
+                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*".format(self.default_region, self.default_account, name),
+                        },
                         {
                             'Effect': 'Allow',
                             'Action': 'logs:PutLogEvents',
-                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*:*".format(self.default_region, self.default_account, real_name),
-                            },
-                        ]
-                    }
-                }]
-            permissions = runtime.permissions
-            if permissions:
+                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*:*".format(self.default_region, self.default_account, name),
+                        },
+                    ]
+                }
+            }]
+            if function_permissions:
                 policies.append({
                     'PolicyName': 'PureSecGeneratedRoles',
                     'PolicyDocument': {
                         'Version': '2012-10-17',
                         'Statement': [
                             {'Effect': 'Allow', 'Action': list(actions), 'Resource': resource}
-                            for resource, actions in permissions
-                            ]
-                        }
-                    })
+                            for resource, actions in function_permissions
+                        ]
+                    }
+                })
+        return roles
 
-        return {'Resources': resources}
+    def result(self):
+        resources = {'Resources': self.roles()}
+        print(AwsProvider.TEMPLATE_DUMPERS[self.cloudformation_filetype or '.yml'](resources))
 
     @property
     def runtimes(self):
@@ -235,9 +251,10 @@ class AwsProvider(Base):
 
         if not self.resource_template:
             self.cloudformation_template = None
+            self.cloudformation_filetype = None
             return
 
-        _, filetype = os.path.splitext(self.resource_template)
+        _, self.cloudformation_filetype = os.path.splitext(self.resource_template)
 
         try:
             resource_template = open(self.resource_template, 'r', errors='replace')
@@ -247,7 +264,7 @@ class AwsProvider(Base):
 
         with resource_template:
             try:
-                self.cloudformation_template = AwsProvider.TEMPLATE_LOADERS[filetype](resource_template, default_region=self.default_region)
+                self.cloudformation_template = AwsProvider.TEMPLATE_LOADERS[self.cloudformation_filetype](resource_template, default_region=self.default_region)
             except ValueError as e:
                 eprint("error: invalid CloudFormation template:\n{}", e)
                 raise SystemExit(-1)
@@ -454,19 +471,15 @@ class AwsProvider(Base):
         for resource_id, resource_config in resources.items():
             if resource_config['Type'] == 'AWS::Lambda::Function':
                 # Getting name
-                real_name = resource_config.get('Properties', {}).get('FunctionName')
-                if not real_name:
+                name = resource_config.get('Properties', {}).get('FunctionName')
+                if not name:
                     eprint("error: lambda name not specified at `{}`", resource_id)
                     raise SystemExit(2)
                 if self.framework:
-                    name = self.framework.get_function_name(real_name)
-                else:
-                    name = real_name
+                    name = self.framework.get_function_name(name)
 
                 if self.function and self.function != name:
                     continue
-
-                self._function_real_names[name] = real_name
 
                 root = os.path.join(self.path, self._get_function_root(name))
                 # Getting runtime

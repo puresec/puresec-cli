@@ -1,5 +1,6 @@
 from puresec_cli.actions.generate_roles.frameworks.base import Base
-from puresec_cli.utils import eprint
+from puresec_cli.utils import eprint, input_query, capitalize
+from ruamel.yaml import YAML
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile, BadZipFile
@@ -7,18 +8,91 @@ import json
 import os
 import re
 
+yaml = YAML() # using non-breaking yaml now
+
 class ServerlessFramework(Base):
-    def __init__(self, path, config, executable):
+    def __init__(self, path, config, executable, yes=False):
         if not executable:
             executable = 'serverless' # from environment (PATH)
 
-        super().__init__(path, config, executable)
+        super().__init__(
+            path, config,
+            executable=executable,
+            yes=yes
+        )
 
     def __exit__(self, type, value, traceback):
         super().__exit__(type, value, traceback)
 
         if hasattr(self, '_serverless_package'):
             self._serverless_package.cleanup()
+
+    def result(self, provider):
+        permissions = provider.permissions
+        if not permissions:
+            return
+
+        # dumping roles
+        result_path = os.path.join(self.path, 'puresec-roles.yml')
+        if not self.yes and os.path.exists(result_path):
+            if not input_query("Roles file already exists, overwrite?"):
+                raise SystemExit(1)
+
+        with open(result_path, 'w') as f:
+            yaml.dump(provider.roles, f)
+
+        # modifying serverless.yml
+        config_path = os.path.join(self.path, "serverless.yml")
+        with open(config_path, 'r') as f:
+            config = yaml.load(f)
+
+        new_resources = config.setdefault('resources', {}).setdefault('Resources', {})
+        new_roles = set()
+
+        # adding roles
+        config.setdefault('custom', {})['puresec_roles'] = "${file(puresec-roles.yml)}"
+        for name in permissions.keys():
+            role = "puresec{}Role".format(capitalize(name))
+            new_roles.add(role)
+            new_resources[role] = "${{self:custom.puresec_roles.PureSec{}Role}}".format(capitalize(name))
+
+        # referencing
+        if self.yes or input_query("Reference functions to new roles?"):
+            for name in permissions.keys():
+                config['functions'][name]['role'] = "puresec{}Role".format(capitalize(name))
+
+        # remove old
+        if self.yes or input_query("Remove old roles?"):
+            old_resources = self._serverless_config['service'].get('resources', {}).get('Resources', {})
+            # default role
+            old_roles = []
+            if 'iamRoleStatements' in config.get('provider', ()):
+                old_roles.append("default service-level role")
+            # roles assumed for lambda
+            for resource_id, resource_config in old_resources.items():
+                if resource_config['Type'] == 'AWS::IAM::Role':
+                    # meh
+                    if 'lambda.amazonaws.com' in str(resource_config.get('Properties', {}).get('AssumeRolePolicyDocument')):
+                        if resource_id not in new_roles and resource_id in new_resources:
+                            old_roles.append(resource_config.get('Properties', {}).get('RoleName', resource_id))
+            # removing
+            if old_roles:
+                old_roles = "\n".join("- {}".format(role) for role in old_roles)
+                if self.yes or input_query("These are the roles that would be removed:\n{}\nAre you sure?".format(old_roles)):
+                    if 'iamRoleStatements' in config.get('provider', ()):
+                        del config['provider']['iamRoleStatements']
+                    for resource_id, resource_config in old_resources.items():
+                        if resource_config['Type'] == 'AWS::IAM::Role':
+                            # meh
+                            if 'lambda.amazonaws.com' in str(resource_config.get('Properties', {}).get('AssumeRolePolicyDocument')):
+                                if resource_id not in new_roles and resource_id in new_resources:
+                                    del new_resources[resource_id]
+
+        if not new_resources and 'resources' in config:
+            del config['resources']
+
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f)
 
     def _package(self):
         """
@@ -107,11 +181,6 @@ class ServerlessFramework(Base):
                 raise SystemExit(-1)
 
         return self._serverless_config_cache
-
-    @property
-    def format(self):
-        return 'yaml'
-        pass
 
     def get_provider_name(self):
         return self._serverless_config['service']['provider']['name']
