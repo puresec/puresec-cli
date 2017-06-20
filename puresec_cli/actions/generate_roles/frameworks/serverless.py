@@ -30,14 +30,14 @@ class ServerlessFramework(Base):
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
-        'error: could not find serverless config in: path/to/project/serverless.yml'
+        'error: could not find serverless config in: {}', 'path/to/project/serverless.yml'
         """
 
         if not hasattr(self, '_serverless_package'):
             # sanity check so that we know FileNotFoundError later means Serverless is not installed
             serverless_config_path = os.path.join(self.path, "serverless.yml")
             if not os.path.exists(serverless_config_path):
-                eprint("error: could not find serverless config in: {}".format(serverless_config_path))
+                eprint("error: could not find serverless config in: {}", serverless_config_path)
                 raise SystemExit(-1)
 
             self._serverless_package = TemporaryDirectory(prefix="puresec-")
@@ -51,7 +51,7 @@ class ServerlessFramework(Base):
             result = process.wait()
             if result != 0:
                 output, _ = process.communicate()
-                eprint("error: serverless package failed:\n{}".format(output.decode()))
+                eprint("error: serverless package failed:\n{}", output.decode())
                 raise SystemExit(result)
 
     @property
@@ -81,7 +81,7 @@ class ServerlessFramework(Base):
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
-        'error: invalid serverless-state.json:\\nExpecting value: line 1 column 1 (char 0)'
+        'error: invalid serverless-state.json:\\n{}', ValueError('Expecting value: line 1 column 1 (char 0)',)
 
         >>> with mock.open('/tmp/package/serverless-state.json', 'w') as f:
         ...     f.write('{ "x": { "y": 1 }, "z": 2 }') and None
@@ -103,7 +103,7 @@ class ServerlessFramework(Base):
             try:
                 self._serverless_config_cache = json.load(serverless_config)
             except ValueError as e:
-                eprint("error: invalid serverless-state.json:\n{}".format(e))
+                eprint("error: invalid serverless-state.json:\n{}", e)
                 raise SystemExit(-1)
 
         return self._serverless_config_cache
@@ -138,7 +138,7 @@ class ServerlessFramework(Base):
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
-        "error: could not find Serverless name for function: 'function-name'"
+        "error: could not find Serverless name for function: '{}'", 'function-name'
 
         >>> framework._serverless_config_cache = {'service': {'functions': {'functionName': {'name': 'function-name'}}}}
         >>> framework.get_function_name('function-name')
@@ -149,7 +149,7 @@ class ServerlessFramework(Base):
             if function_config['name'] == provider_function_name:
                 return name
 
-        eprint("error: could not find Serverless name for function: '{}'".format(provider_function_name))
+        eprint("error: could not find Serverless name for function: '{}'", provider_function_name)
         raise SystemExit(-1)
 
     def get_function_root(self, name):
@@ -163,10 +163,10 @@ class ServerlessFramework(Base):
         try:
             zipfile = ZipFile(os.path.join(self._serverless_package.name, "{}.zip".format(package_name)), 'r')
         except FileNotFoundError:
-            eprint("error: serverless package did not create a function zip for '{}'".format(name))
+            eprint("error: serverless package did not create a function zip for '{}'", name)
             raise SystemExit(2)
         except BadZipFile:
-            eprint("error: serverless package did not create a valid function zip for '{}'".format(name))
+            eprint("error: serverless package did not create a valid function zip for '{}'", name)
             raise SystemExit(2)
 
         with zipfile:

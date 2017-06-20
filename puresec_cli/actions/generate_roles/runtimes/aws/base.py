@@ -69,7 +69,7 @@ class Base(RuntimeBase, BaseApi):
                 for region in boto3.Session().get_available_regions('ec2')
                 )
     except botocore.exceptions.BotoCoreError as e:
-        eprint("error: failed to create aws session:\n{}".format(e))
+        eprint("error: failed to create aws session:\n{}", e)
         raise SystemExit(-1)
     # regions = set()
     def _get_regions(self, filename, file, regions, service, account):
@@ -393,14 +393,14 @@ class Base(RuntimeBase, BaseApi):
         >>> resources = defaultdict(set)
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
-        "warn: unknown resources for 'dynamodb:us-west-1'"
+        "warn: unknown resources for '{}'", 'dynamodb:us-west-1'
         >>> dict(resources)
         {'*': set()}
         """
 
         if not resources:
             resources['*'] # accessing to initialize defaultdict
-            eprint("warn: unknown resources for '{}'".format(':'.join(parents)))
+            eprint("warn: unknown resources for '{}'", ':'.join(parents))
         else:
             # mapping all resources wildcard matching to others
             wildcard_matches = {}
@@ -457,7 +457,7 @@ class Base(RuntimeBase, BaseApi):
         >>> resources = {'table/sometable': set()}
         >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
-        "warn: unknown actions for 'dynamodb:us-west-1:table/sometable'"
+        "warn: unknown actions for '{}:{}'", 'dynamodb:us-west-1', 'table/sometable'
         >>> pprint(normalize_dict(resources))
         {'table/sometable': {'*'}}
 
@@ -476,7 +476,7 @@ class Base(RuntimeBase, BaseApi):
                     del resources[resource]
                 else:
                     actions.add('*')
-                    eprint("warn: unknown actions for '{}:{}'".format(':'.join(parents), resource))
+                    eprint("warn: unknown actions for '{}:{}'", ':'.join(parents), resource)
             elif '*' in actions:
                 actions.clear()
                 actions.add('*')

@@ -1,5 +1,6 @@
 PyYAML
 termcolor
+analytics-python
 # AWS
 boto3
 aws-parsecf

@@ -47,6 +47,14 @@ class Base:
     def process(self):
         pass
 
+    @abc.abstractproperty
+    def output(self):
+        pass
+
+    def runtimes(self):
+        """ Returns which runtimes were used and how many times. """
+        return {}
+
     def _get_function_root(self, name):
         """
         >>> from tests.mock import Mock

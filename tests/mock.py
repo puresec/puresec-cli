@@ -13,6 +13,7 @@ class Mock:
         self.mocks = {}
         self.calls = defaultdict(list)
         self.opened = {}
+        self.filesystem = {}
 
         # default mocks
         self.stderr = sys.stderr
@@ -30,17 +31,22 @@ class Mock:
             self.unmock(module, name)
 
     def mock(self, module, name, return_value=None):
+        current_value = getattr(module or self.module, name, None)
+
         if (module, name) not in self.mocks:
-            self.mocks[(module, name)] = getattr(module or self.module, name, None)
+            self.mocks[(module, name)] = current_value
 
-        self = weakref.proxy(self)
-        module_name = module.__name__ if hasattr(module, '__name__') else type(module).__name__
-        call_name = "{}.{}".format(module_name, name) if module else name
-        def _mock(*attrs, **kwargs):
-            self.calls[call_name].append((attrs, kwargs))
-            return return_value(*attrs, **kwargs) if callable(return_value) else return_value
+        if current_value is None or callable(current_value):
+            self = weakref.proxy(self)
+            module_name = module.__name__ if hasattr(module, '__name__') else type(module).__name__
+            call_name = "{}.{}".format(module_name, name) if module else name
+            def _mock(*attrs, **kwargs):
+                self.calls[call_name].append((attrs, kwargs))
+                return return_value(*attrs, **kwargs) if callable(return_value) else return_value
 
-        setattr(module or self.module, name, _mock)
+            setattr(module or self.module, name, _mock)
+        else:
+            setattr(module or self.module, name, return_value)
 
     def unmock(self, module, name):
         if self.mocks[(module, name)] is not None:
@@ -71,6 +77,12 @@ class Mock:
             print(', '.join(formatted))
 
         del self.calls[name]
+
+    def clear_filesystem(self):
+        for stream in self.opened.values():
+            stream.close()
+        self.opened.clear()
+        self.filesystem.clear()
 
     def open(self, path, mode='r', errors=None):
         stream = self.opened.get(path)

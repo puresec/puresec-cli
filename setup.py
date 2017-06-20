@@ -2,6 +2,14 @@
 
 from setuptools import setup, find_packages
 
+def find_version():
+    with open('puresec_cli/__init__.py') as f:
+        version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
+                                  f.read(), re.M)
+    if version_match:
+        return version_match.group(1)
+    raise RuntimeError("Unable to find version string.")
+
 setup(
     name='puresec-cli',
     version='1.0.0',
@@ -18,6 +26,7 @@ setup(
     install_requires=[
         'PyYAML',
         'termcolor',
+        'analytics-python',
         # AWS
         'boto3',
         'aws-parsecf',
