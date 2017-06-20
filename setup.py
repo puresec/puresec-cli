@@ -13,7 +13,7 @@ def find_version():
 setup(
     name='puresec-cli',
     version='1.0.0',
-    description="Set of wonderful tools to improve your serverless security (and social life).",
+    description="PureSec CLI tools for improving the security of your serverless applications.",
     long_description=open('README.rst').read(),
     author='PureSec <support@puresec.io>',
     url='https://github.com/puresec/puresec-cli',
