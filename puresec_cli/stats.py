@@ -7,7 +7,7 @@ import puresec_cli
 import sys
 import traceback
 
-analytics.write_key = ''
+analytics.write_key = 'CnRP4aqeHLvdTdS9nOAzdEtnQz5c2w74'
 
 class Stats:
     """ Singleton object in charge of sending anonymous statistics.

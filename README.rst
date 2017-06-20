@@ -8,7 +8,7 @@ Installation
 
 .. code:: bash
 
-   sudo pip3 install git+https://github.com/puresec/puresec-cli.git
+   sudo pip3 install git+https://github.com/puresec/puresec-cli.git@nordstrom
 
 Usage
 -----
