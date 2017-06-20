@@ -1,6 +1,6 @@
 from puresec_cli.utils import eprint, get_inner_parentheses
-from puresec_cli.runtimes.aws.base import Base
-from puresec_cli.runtimes.aws.nodejs_api import NodejsApi
+from puresec_cli.actions.generate_roles.runtimes.aws.base import Base
+from puresec_cli.actions.generate_roles.runtimes.aws.nodejs_api import NodejsApi
 import re
 
 class NodejsRuntime(Base, NodejsApi):

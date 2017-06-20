@@ -1,4 +1,4 @@
-from puresec_cli import main
+from puresec_cli.cli import main
 
 if __name__ == '__main__':
     main()

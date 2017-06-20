@@ -12,7 +12,7 @@ setup(
     packages=find_packages(exclude=['tests*']),
     entry_points={
         'console_scripts': [
-            'puresec=puresec_cli:main',
+            'puresec=puresec_cli.cli:main',
         ],
     },
     install_requires=[

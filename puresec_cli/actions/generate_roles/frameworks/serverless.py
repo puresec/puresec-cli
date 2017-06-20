@@ -1,4 +1,4 @@
-from puresec_cli.frameworks.base import Base
+from puresec_cli.actions.generate_roles.frameworks.base import Base
 from puresec_cli.utils import eprint
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import TemporaryDirectory

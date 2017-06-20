@@ -1,0 +1,135 @@
+from contextlib import contextmanager
+from functools import partial
+from importlib import import_module
+from puresec_cli.actions.base import Base
+from puresec_cli.actions.generate_roles import providers, frameworks
+from puresec_cli.actions.generate_roles.runtimes import aws
+from puresec_cli.utils import eprint
+import json
+import os
+import yaml
+
+class GenerateRoles(Base):
+    @staticmethod
+    def command():
+        return 'gen-roles'
+
+    @classmethod
+    def argument_parser_options(cls):
+        options = super().argument_parser_options()
+        options.update(
+            description="PureSec role generator."
+        )
+        return options
+
+    @classmethod
+    def add_arguments(cls, parser):
+        super().add_arguments(parser)
+
+        parser.add_argument('path', nargs='*', default=[os.getcwd()],
+                            help="Path to the root directory of your project")
+
+        parser.add_argument('--provider', '-p', choices=providers.__all__,
+                            help="Name of the cloud provider (required without --framework)")
+
+        parser.add_argument('--resource-template', '-t',
+                            help="Provider-specific resource template (e.g CloudFormation JSON for AWS) (optional)")
+
+        parser.add_argument('--runtime', '-r', choices=aws.__all__,
+                            help="Runtime language (optional)")
+
+        parser.add_argument('--framework', '-f', choices=frameworks.__all__,
+                            help="Framework used for deploying (optional)")
+
+        parser.add_argument('--framework-path', '-e',
+                            help="Path to the framework's executable, usually not needed.")
+
+        parser.add_argument('--function',
+                            help="Only generate roles for a specific function.")
+
+        parser.add_argument('--format', choices=['json', 'yaml'],
+                            help="Wanted output format, defaults to framework/provider guesswork")
+
+    def __init__(self, args):
+        super().__init__(args)
+
+    @contextmanager
+    def generate_config(self, path):
+        config_path = os.path.join(path, "puresec.yml")
+        if os.path.isfile(config_path):
+            with open(config_path, 'r', errors='replace') as config_file:
+                config = yaml.load(config_file)
+        else:
+            config = {}
+
+        yield config
+
+        if config:
+            with open(config_path, 'w', errors='replace') as config_file:
+                yaml.dump(config, config_file, default_flow_style=False)
+
+    @contextmanager
+    def generate_framework(self, path, config):
+        if not self.args.framework:
+            yield None
+        else:
+            framework = import_module("puresec_cli.actions.generate_roles.frameworks.{}".format(self.args.framework)).Framework(
+                path, config,
+                executable=self.args.framework_path,
+            )
+            with framework:
+                yield framework
+
+    @contextmanager
+    def generate_provider(self, path, framework, config):
+        if framework:
+            provider = framework.get_provider_name()
+            if provider:
+                if self.args.provider:
+                    # self.args.provider always in providers.__all__, no need to check
+                    if self.args.provider != provider:
+                        eprint("error: conflict between --provider ('{}') option and framework ('{}')".format(self.args.provider, provider))
+                        raise SystemExit(2)
+                elif provider not in providers.__all__:
+                    eprint("error: unsupported provider received from framework: '{}', sorry :(".format(provider))
+                    raise SystemExit(2)
+            else:
+                if not self.args.provider:
+                    eprint("error: could not determine provider from framework, please specify with --provider")
+                    raise SystemExit(2)
+                provider = self.args.provider
+        else:
+            if not self.args.provider:
+                eprint("error: must specify either --provider or --framework")
+                raise SystemExit(2)
+            provider = self.args.provider
+
+        provider = import_module("puresec_cli.actions.generate_roles.providers.{}".format(provider)).Provider(
+            path, config,
+            resource_template=self.args.resource_template,
+            runtime=self.args.runtime,
+            framework=framework,
+            function=self.args.function,
+        )
+        with provider:
+            yield provider
+
+    DUMPERS = {
+        'json': partial(json.dumps, indent=2),
+        'yaml': partial(yaml.dump, default_flow_style=False),
+    }
+
+    def run(self):
+        for path in self.args.path:
+            if len(self.args.path) > 1:
+                print("{}:".format(path))
+            with self.generate_config(path) as config:
+                with self.generate_framework(path, config) as framework:
+                    with self.generate_provider(path, framework, config) as provider:
+                        provider.process()
+
+                        output_format = self.args.format or (framework and framework.format) or provider.format or 'json'
+                        print(GenerateRoles.DUMPERS[output_format](provider.output))
+
+Action = GenerateRoles
+
