@@ -2,7 +2,7 @@
 
 from functools import partial
 from itertools import chain
-from puresec_generate_roles.utils import capitalize
+from puresec_cli.utils import capitalize
 import re
 
 CALL_PATTERN_TEMPLATE = r"\.\s*{0}(\(.{{0,1024}})" # .VALUE(OUTPUT) including opening parantheses and 1000 characters after
