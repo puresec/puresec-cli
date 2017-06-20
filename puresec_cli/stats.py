@@ -320,7 +320,7 @@ class Stats:
                 'framework': self.args.framework,
                 'framework_path': bool(self.args.framework_path),
                 'function': bool(self.args.function),
-                'format': self.args.format,
+                'yes': self.args.yes,
             },
             'environment': {
                 'provider': type(self.providers[0]).__name__ if self.providers else None,
