@@ -9,7 +9,7 @@ Install
 
 .. code:: bash
 
-   sudo pip3 install --process-dependency-links git+https://github.com/puresec/puresec-generate-roles.git
+   sudo pip3 install git+https://github.com/puresec/puresec-generate-roles.git
 
 Usage
 -----
