@@ -1,11 +1,10 @@
 from argparse import ArgumentParser
-from puresec_generate_roles import frameworks, providers
-from puresec_generate_roles.runtimes import aws
+from puresec_cli import frameworks, providers
+from puresec_cli.runtimes import aws
 import os
 
 parser = ArgumentParser(
-    usage="puresec-gen-roles",
-    description="PureSec Role Generator"
+    description="Set of wonderful tools to improve your serverless security (and social life)."
 )
 
 parser.add_argument('path', nargs='*', default=[os.getcwd()],

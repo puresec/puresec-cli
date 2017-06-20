@@ -9,15 +9,15 @@ if sys.version_info.major != 3:
 from contextlib import contextmanager
 from functools import partial
 from importlib import import_module
-from puresec_generate_roles import arguments, providers
-from puresec_generate_roles.utils import eprint
+from puresec_cli import arguments, providers
+from puresec_cli.utils import eprint
 import json
 import os
 import yaml
 
 @contextmanager
 def generate_config(path, args):
-    config_path = os.path.join(path, "puresec-generate-roles.yml")
+    config_path = os.path.join(path, "puresec.yml")
     if os.path.isfile(config_path):
         with open(config_path, 'r', errors='replace') as config_file:
             config = yaml.load(config_file)
@@ -35,7 +35,7 @@ def generate_framework(path, args, config):
     if not args.framework:
         yield None
     else:
-        framework = import_module("puresec_generate_roles.frameworks.{}".format(args.framework)).Framework(
+        framework = import_module("puresec_cli.frameworks.{}".format(args.framework)).Framework(
             path, config,
             executable=args.framework_path,
         )
@@ -66,7 +66,7 @@ def generate_provider(path, args, framework, config):
             raise SystemExit(2)
         provider = args.provider
 
-    provider = import_module("puresec_generate_roles.providers.{}".format(provider)).Provider(
+    provider = import_module("puresec_cli.providers.{}".format(provider)).Provider(
         path, config,
         resource_template=args.resource_template,
         runtime=args.runtime,

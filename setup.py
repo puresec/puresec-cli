@@ -3,16 +3,16 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='puresec-generate-roles',
+    name='puresec-cli',
     version='1.0.0',
-    description="A CLI tool for creating cloud roles with least privilege permissions using static code analysis.",
+    description="Set of wonderful tools to improve your serverless security (and social life).",
     long_description=open('README.rst').read(),
-    author='Oded Niv',
-    url='https://github.com/puresec/puresec-generate-roles',
+    author='PureSec <support@puresec.io>',
+    url='https://github.com/puresec/puresec-cli',
     packages=find_packages(exclude=['tests*']),
     entry_points={
         'console_scripts': [
-            'puresec-gen-roles=puresec_generate_roles:main',
+            'puresec=puresec_cli:main',
         ],
     },
     install_requires=[

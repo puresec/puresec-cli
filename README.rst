@@ -1,22 +1,19 @@
-puresec-generate-roles
+puresec-cli
 ======================
-
-A CLI tool for creating cloud roles with least privilege permissions
-using static code analysis.
 
 Install
 -------
 
 .. code:: bash
 
-   sudo pip3 install git+https://github.com/puresec/puresec-generate-roles.git
+   sudo pip3 install git+https://github.com/puresec/puresec-cli.git
 
 Usage
 -----
 
 .. code:: bash
 
-    puresec-gen-roles --help
+    puresec --help
 
 Development
 -----------
@@ -25,5 +22,5 @@ Development
 
     pip install -r requirements.txt
     nosetests -c nose.cfg
-    python -m puresec_generate_roles --help
+    python -m puresec_cli --help
 

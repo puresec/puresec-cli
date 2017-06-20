@@ -1,7 +1,7 @@
 from importlib import import_module
-from puresec_generate_roles.providers.base import Base
-from puresec_generate_roles.runtimes import aws as runtimes
-from puresec_generate_roles.utils import eprint
+from puresec_cli.providers.base import Base
+from puresec_cli.runtimes import aws as runtimes
+from puresec_cli.utils import eprint
 import aws_parsecf
 import boto3
 import botocore
@@ -110,7 +110,7 @@ class AwsProvider(Base):
         >>> mock.mock(None, 'eprint')
         >>> mock.mock(AwsProvider, '_init_default_account')
 
-        >>> from puresec_generate_roles.frameworks.base import Base as FrameworkBase
+        >>> from puresec_cli.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def get_default_profile(self):
         ...         return "default_profile"
@@ -145,7 +145,7 @@ class AwsProvider(Base):
         >>> mock.mock(None, 'eprint')
         >>> mock.mock(AwsProvider, '_init_default_account')
 
-        >>> from puresec_generate_roles.frameworks.base import Base as FrameworkBase
+        >>> from puresec_cli.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def __init__(self, has_default_region):
         ...         self.has_default_region = has_default_region
@@ -257,12 +257,12 @@ class AwsProvider(Base):
         >>> mock.mock(AwsProvider, '_init_default_account')
         >>> with mock.open("path/to/cloudformation.json", 'w') as f:
         ...     f.write('{}') and None
-        >>> from puresec_generate_roles.frameworks.base import Base as FrameworkBase
+        >>> from puresec_cli.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
         ...     def get_function_name(self, name):
         ...         return name[1:]
 
-        >>> from puresec_generate_roles.runtimes.aws.base import Base as RuntimeBase
+        >>> from puresec_cli.runtimes.aws.base import Base as RuntimeBase
         >>> class RuntimeModule:
         ...     class Runtime(RuntimeBase):
         ...         def process(self):
@@ -335,7 +335,7 @@ class AwsProvider(Base):
         >>> handler.runtime = 'nodejs'
         >>> handler.process()
         >>> mock.calls_for('import_module')
-        'puresec_generate_roles.runtimes.aws.nodejs'
+        'puresec_cli.runtimes.aws.nodejs'
         >>> list(handler._function_runtimes.keys())
         ['nnamed']
         >>> handler._function_runtimes['nnamed'].root
@@ -362,7 +362,7 @@ class AwsProvider(Base):
         ... }
         >>> handler.process()
         >>> mock.calls_for('import_module')
-        'puresec_generate_roles.runtimes.aws.nodejs'
+        'puresec_cli.runtimes.aws.nodejs'
         >>> list(handler._function_runtimes.keys())
         ['functionName']
         >>> handler._function_runtimes['functionName'].root
@@ -392,7 +392,7 @@ class AwsProvider(Base):
         ... }
         >>> handler.process()
         >>> mock.calls_for('import_module')
-        'puresec_generate_roles.runtimes.aws.nodejs'
+        'puresec_cli.runtimes.aws.nodejs'
         >>> list(handler._function_runtimes.keys())
         ['functionName']
         >>> handler._function_runtimes['functionName'].root
@@ -475,7 +475,7 @@ class AwsProvider(Base):
                 # Getting environment
                 environment = resource_config.get('Properties', {}).get('Environment', {}).get('Variables', {})
 
-                self._function_runtimes[name] = runtime = import_module("puresec_generate_roles.runtimes.aws.{}".format(runtime)).Runtime(
+                self._function_runtimes[name] = runtime = import_module("puresec_cli.runtimes.aws.{}".format(runtime)).Runtime(
                         root,
                         config=self.config,
                         cloudformation_template=self.cloudformation_template,

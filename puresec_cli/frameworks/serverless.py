@@ -1,5 +1,5 @@
-from puresec_generate_roles.frameworks.base import Base
-from puresec_generate_roles.utils import eprint
+from puresec_cli.frameworks.base import Base
+from puresec_cli.utils import eprint
 from subprocess import Popen, PIPE, STDOUT
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile, BadZipFile
@@ -40,7 +40,7 @@ class ServerlessFramework(Base):
                 eprint("error: could not find serverless config in: {}".format(serverless_config_path))
                 raise SystemExit(-1)
 
-            self._serverless_package = TemporaryDirectory(prefix="puresec-generate-roles-")
+            self._serverless_package = TemporaryDirectory(prefix="puresec-")
 
             try:
                 process = Popen([self.executable, 'package', '--package', self._serverless_package.name], cwd=self.path, stdout=PIPE, stderr=STDOUT)
