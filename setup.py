@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
+import re
 
 def find_version():
     with open('puresec_cli/__init__.py') as f:
@@ -12,7 +13,7 @@ def find_version():
 
 setup(
     name='puresec-cli',
-    version='1.0.0',
+    version=find_version(),
     description="PureSec CLI tools for improving the security of your serverless applications.",
     long_description=open('README.rst').read(),
     author='PureSec <support@puresec.io>',
