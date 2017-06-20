@@ -6,10 +6,11 @@ import os
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, path, config, executable):
+    def __init__(self, path, config, executable, yes=False):
         self.path = path
         self.config = config
         self.executable = executable
+        self.yes = yes
 
         self._init_executable()
 
@@ -58,7 +59,8 @@ class Base:
     def __exit__(self, type, value, traceback):
         pass
 
-    def get_format(self):
+    @abc.abstractmethod
+    def result(self, provider):
         pass
 
     def get_provider_name(self):

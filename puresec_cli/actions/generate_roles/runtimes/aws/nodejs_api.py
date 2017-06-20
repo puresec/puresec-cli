@@ -2,6 +2,7 @@
 
 from functools import partial
 from itertools import chain
+from puresec_generate_roles.utils import capitalize
 import re
 
 CALL_PATTERN_TEMPLATE = r"\.\s*{0}(\(.{{0,1024}})" # .VALUE(OUTPUT) including opening parantheses and 1000 characters after
@@ -40,8 +41,7 @@ class NodejsApi:
             'dynamodb': tuple(
                 chain((
                     (
-                        # "batchGetItem" -> "dynamodb:BatchGetItem"
-                        "dynamodb:{}{}".format(method[0].capitalize(), method[1:]),
+                        "dynamodb:{}".format(capitalize(method)),
                         re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
                     )
                     for method in (
@@ -70,7 +70,7 @@ class NodejsApi:
             'kinesis': tuple(
                 (
                     # "batchGetItem" -> "kinesis:BatchGetItem"
-                    "kinesis:{}{}".format(method[0].capitalize(), method[1:]),
+                    "kinesis:{}".format(capitalize(method)),
                     re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
                 )
                 for method in (
@@ -84,7 +84,7 @@ class NodejsApi:
                 chain((
                     (
                         # "encrypt" -> "kms:Encrypt"
-                        "kms:{}{}".format(method[0].capitalize(), method[1:]),
+                        "kms:{}".format(capitalize(method)),
                         re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
                     )
                     for method in (
@@ -108,7 +108,7 @@ class NodejsApi:
                 chain((
                     (
                         # "createFunction" -> "lambda:CreateFunction"
-                        "lambda:{}{}".format(method[0].capitalize(), method[1:]),
+                        "lambda:{}".format(capitalize(method)),
                         re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
                     )
                     for method in (
@@ -130,7 +130,7 @@ class NodejsApi:
                 chain((
                     (
                         # "getObject" -> "s3:GetObject"
-                        "s3:{}{}".format(method[0].capitalize(), method[1:]),
+                        "s3:{}".format(capitalize(method)),
                         re.compile(S3_SIGNED_URL_PATTERN.format(method, method), re.MULTILINE | re.DOTALL)
                     )
                     for method in (
@@ -199,7 +199,7 @@ class NodejsApi:
                 chain((
                     (
                         # "sendEmail" -> "ses:SendEmail"
-                        "ses:{}{}".format(method[0].capitalize(), method[1:]),
+                        "ses:{}".format(capitalize(method)),
                         re.compile(S3_SIGNED_URL_PATTERN.format(method, method), re.MULTILINE | re.DOTALL)
                     )
                     for method in (
@@ -232,7 +232,7 @@ class NodejsApi:
             'sns': tuple(
                 (
                     # "subscribe" -> "sns:Subscribe"
-                    "sns:{}{}".format(method[0].capitalize(), method[1:]),
+                    "sns:{}".format(capitalize(method)),
                     re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
                 )
                 for method in (
@@ -247,7 +247,7 @@ class NodejsApi:
             'states': tuple(
                 (
                     # "startExecution" -> "states:StartExecution"
-                    "states:{}{}".format(method[0].capitalize(), method[1:]),
+                    "states:{}".format(capitalize(method)),
                     re.compile(CALL_PATTERN_TEMPLATE.format(method), re.MULTILINE | re.DOTALL)
                 )
                 for method in (

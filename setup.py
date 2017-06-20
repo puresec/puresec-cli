@@ -25,6 +25,7 @@ setup(
     },
     install_requires=[
         'PyYAML',
+        'ruamel.yaml',
         'termcolor',
         'analytics-python',
         # AWS

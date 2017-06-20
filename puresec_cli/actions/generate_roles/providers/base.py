@@ -4,7 +4,7 @@ import abc
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None):
+    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None, yes=False):
         """
         >>> class Provider(Base):
         ...     pass
@@ -29,6 +29,7 @@ class Base:
         self.runtime = runtime
         self.framework = framework
         self.function = function
+        self.yes = yes
 
         if not self.resource_template and self.framework:
             self.resource_template = self.framework.get_resource_template()
@@ -39,16 +40,16 @@ class Base:
     def __exit__(self, type, value, traceback):
         pass
 
-    @property
-    def format(self):
-        pass
-
     @abc.abstractmethod
     def process(self):
         pass
 
     @abc.abstractproperty
-    def output(self):
+    def permissions(self):
+        pass
+
+    @abc.abstractproperty
+    def result(self):
         pass
 
     def runtimes(self):
