@@ -6,10 +6,11 @@ import os
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, path, config, executable, yes=False):
+    def __init__(self, path, config, executable, function=None, yes=False):
         self.path = path
         self.config = config
         self.executable = executable
+        self.function = function
         self.yes = yes
 
         self._init_executable()

@@ -75,6 +75,7 @@ class GenerateRoles(Base):
             framework = import_module("puresec_cli.actions.generate_roles.frameworks.{}".format(self.args.framework)).Framework(
                 path, config,
                 executable=self.args.framework_path,
+                function=self.args.function,
                 yes=self.args.yes,
             )
             with framework:
