@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import partial
 from importlib import import_module
 from puresec_cli.actions.generate_roles.providers.base import Base
+from puresec_cli.actions.generate_roles.providers.aws_api import AwsApi
 from puresec_cli.actions.generate_roles.runtimes import aws as runtimes
 from puresec_cli.utils import eprint, capitalize
 import aws_parsecf
@@ -11,8 +12,9 @@ import json
 import os
 import re
 import yaml
+import weakref
 
-class AwsProvider(Base):
+class AwsProvider(Base, AwsApi):
     def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None, yes=False):
         """
         >>> from tests.mock import Mock
@@ -55,7 +57,7 @@ class AwsProvider(Base):
 
     @property
     def permissions(self):
-        return dict((name, runtime.permissions) for name, runtime in self._function_runtimes.items())
+        return dict((name, permissions) for name, permissions in self._function_permissions.items())
 
     TEMPLATE_DUMPERS = {
         '.json': partial(json.dumps, indent=2),
@@ -85,35 +87,17 @@ class AwsProvider(Base):
                 }
             }
 
-            policies = role['Properties']['Policies'] = [{
-                'PolicyName': "CreateAndWriteToLogStream",
-                'PolicyDocument': {
-                    'Version': '2012-10-17',
-                    'Statement': [
-                        {
-                            'Effect': 'Allow',
-                            'Action': 'logs:CreateLogStream',
-                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*".format(self.default_region, self.default_account, name),
-                        },
-                        {
-                            'Effect': 'Allow',
-                            'Action': 'logs:PutLogEvents',
-                            'Resource': "arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*:*".format(self.default_region, self.default_account, name),
-                        },
-                    ]
-                }
-            }]
             if function_permissions:
-                policies.append({
+                role['Properties']['Policies'] = [{
                     'PolicyName': 'PureSecGeneratedRoles',
                     'PolicyDocument': {
                         'Version': '2012-10-17',
                         'Statement': [
                             {'Effect': 'Allow', 'Action': list(actions), 'Resource': resource}
-                            for resource, actions in function_permissions
+                            for resource, actions in function_permissions.items()
                         ]
                     }
-                })
+                }]
         return roles
 
     def result(self):
@@ -277,6 +261,7 @@ class AwsProvider(Base):
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
         >>> mock.mock(AwsProvider, '_init_default_account')
+        >>> mock.mock(AwsProvider, '_process_configurations')
         >>> with mock.open("path/to/cloudformation.json", 'w') as f:
         ...     f.write('{}') and None
         >>> from puresec_cli.actions.generate_roles.frameworks.base import Base as FrameworkBase
@@ -288,7 +273,7 @@ class AwsProvider(Base):
         >>> class RuntimeModule:
         ...     class Runtime(RuntimeBase):
         ...         def process(self):
-        ...             self.processed = True
+        ...             pass
         >>> mock.mock(None, 'import_module', lambda name: RuntimeModule)
 
         >>> handler = AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}, 'ls'))
@@ -304,7 +289,7 @@ class AwsProvider(Base):
         ...     }
         ... }
         >>> handler.process()
-        >>> handler._function_runtimes
+        >>> handler._function_permissions
         {}
 
         >>> handler.cloudformation_template = {
@@ -350,7 +335,7 @@ class AwsProvider(Base):
         >>> handler.process()
         >>> mock.calls_for('eprint')
         'warn: lambda runtime not supported: `{}` (for `{}`), sorry :(', 'abc', 'functionName'
-        >>> handler._function_runtimes
+        >>> handler._function_permissions
         {}
 
         >>> handler.cloudformation_template = None
@@ -358,18 +343,8 @@ class AwsProvider(Base):
         >>> handler.process()
         >>> mock.calls_for('import_module')
         'puresec_cli.actions.generate_roles.runtimes.aws.nodejs'
-        >>> list(handler._function_runtimes.keys())
+        >>> list(handler._function_permissions.keys())
         ['nnamed']
-        >>> handler._function_runtimes['nnamed'].root
-        'path/to/project/functions/nnamed'
-        >>> handler._function_runtimes['nnamed'].default_region
-        'default_region'
-        >>> handler._function_runtimes['nnamed'].default_account
-        'default_account'
-        >>> handler._function_runtimes['nnamed'].environment
-        {}
-        >>> handler._function_runtimes['nnamed'].processed
-        True
 
         >>> handler.cloudformation_template = {
         ...     'Resources': {
@@ -385,48 +360,8 @@ class AwsProvider(Base):
         >>> handler.process()
         >>> mock.calls_for('import_module')
         'puresec_cli.actions.generate_roles.runtimes.aws.nodejs'
-        >>> list(handler._function_runtimes.keys())
+        >>> list(handler._function_permissions.keys())
         ['functionName']
-        >>> handler._function_runtimes['functionName'].root
-        'path/to/project/functions/functionName'
-        >>> handler._function_runtimes['functionName'].default_region
-        'default_region'
-        >>> handler._function_runtimes['functionName'].default_account
-        'default_account'
-        >>> handler._function_runtimes['functionName'].environment
-        {}
-        >>> handler._function_runtimes['functionName'].processed
-        True
-
-        >>> handler.cloudformation_template = {
-        ...     'Resources': {
-        ...         'ResourceId': {
-        ...             'Type': 'AWS::Lambda::Function',
-        ...             'Properties': {
-        ...                 'FunctionName': "-functionName",
-        ...                 'Runtime': "nodejs4.3",
-        ...                 'Environment': {
-        ...                     'Variables': { 'a': 1, 'b': 2 }
-        ...                 }
-        ...             }
-        ...         }
-        ...     }
-        ... }
-        >>> handler.process()
-        >>> mock.calls_for('import_module')
-        'puresec_cli.actions.generate_roles.runtimes.aws.nodejs'
-        >>> list(handler._function_runtimes.keys())
-        ['functionName']
-        >>> handler._function_runtimes['functionName'].root
-        'path/to/project/functions/functionName'
-        >>> handler._function_runtimes['functionName'].default_region
-        'default_region'
-        >>> handler._function_runtimes['functionName'].default_account
-        'default_account'
-        >>> pprint(handler._function_runtimes['functionName'].environment)
-        {'a': 1, 'b': 2}
-        >>> handler._function_runtimes['functionName'].processed
-        True
 
         >>> handler.function = 'functionOne'
         >>> handler.cloudformation_template = {
@@ -448,11 +383,11 @@ class AwsProvider(Base):
         ...     }
         ... }
         >>> handler.process()
-        >>> list(handler._function_runtimes.keys())
+        >>> list(handler._function_permissions.keys())
         ['functionOne']
         """
         self._function_real_names = {}
-        self._function_runtimes = {}
+        self._function_permissions = {}
         self._runtime_counter = defaultdict(int)
 
         if self.cloudformation_template:
@@ -497,16 +432,19 @@ class AwsProvider(Base):
                 # Getting environment
                 environment = resource_config.get('Properties', {}).get('Environment', {}).get('Variables', {})
 
-                self._function_runtimes[name] = runtime = import_module("puresec_cli.actions.generate_roles.runtimes.aws.{}".format(runtime)).Runtime(
-                        root,
-                        config=self.config,
-                        cloudformation_template=self.cloudformation_template,
-                        session=self.session,
-                        default_region=self.default_region,
-                        default_account=self.default_account,
-                        environment=environment)
+                runtime = import_module("puresec_cli.actions.generate_roles.runtimes.aws.{}".format(runtime)).Runtime(
+                    root,
+                    environment=environment,
+                    provider=weakref.proxy(self),
+                )
 
                 runtime.process()
+                self._function_permissions[name] = runtime.permissions
+                self._process_configurations(name, resource_id, resource_config)
+
+    def _process_configurations(self, name, resource_id, resource_config):
+        for processor in AwsProvider.CONFIGURATION_PROCESSORS:
+            processor(self)(name, resource_id, resource_config)
 
 Provider = AwsProvider
 

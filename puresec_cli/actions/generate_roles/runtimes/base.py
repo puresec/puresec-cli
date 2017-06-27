@@ -4,9 +4,9 @@ import os
 class Base:
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, root, config):
+    def __init__(self, root, provider):
         self.root = root
-        self.config = config
+        self.provider = provider
 
     MAX_FILE_SIZE = 5 * 1024 * 1024 # 5MB
 
@@ -33,7 +33,7 @@ class Base:
         >>> with mock.open("path/to/function/b/d", 'w') as f:
         ...     f.write("d content") and None
 
-        >>> runtime = Runtime('path/to/function', config={})
+        >>> runtime = Runtime('path/to/function', None)
 
         >>> def stat(filename):
         ...     return namedtuple('Stat', ('st_size',))(5*1024*1024 if filename == "path/to/function/e" else 512)

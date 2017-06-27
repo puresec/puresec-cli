@@ -13,12 +13,8 @@ import re
 class Base(RuntimeBase, BaseApi):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, root, config, cloudformation_template, session, default_region, default_account, environment):
-        super().__init__(root, config)
-        self.session = session
-        self.cloudformation_template = cloudformation_template
-        self.default_region = default_region
-        self.default_account = default_account
+    def __init__(self, root, environment, provider):
+        super().__init__(root, provider)
         self.environment = environment
 
         # { service: { region: { account: { resource: {action} } } } }
@@ -27,27 +23,29 @@ class Base(RuntimeBase, BaseApi):
     @property
     def permissions(self):
         """
+        >>> from pprint import pprint
+
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', environment={}, provider=object())
         >>> runtime._permissions = {
         ...     'dynamodb': {'us-west-1': {'111': {'table/a': {'GetRecords'}, 'table/b': {'UpdateItem'}}}},
         ...     'ses': {'*': {'111': {'*': {'*'}}, '222': {'*': {'*'}}}},
-        ...     }
+        ... }
 
-        >>> sorted(runtime.permissions)
-        [('arn:aws:dynamodb:us-west-1:111:table/a', {'GetRecords'}),
-         ('arn:aws:dynamodb:us-west-1:111:table/b', {'UpdateItem'}),
-         ('arn:aws:ses:*:111:*', {'*'}),
-         ('arn:aws:ses:*:222:*', {'*'})]
+        >>> pprint(runtime.permissions)
+        {'arn:aws:dynamodb:us-west-1:111:table/a': {'GetRecords'},
+         'arn:aws:dynamodb:us-west-1:111:table/b': {'UpdateItem'},
+         'arn:aws:ses:*:111:*': {'*'},
+         'arn:aws:ses:*:222:*': {'*'}}
         """
 
-        permissions = []
+        permissions = {}
         for service, regions in self._permissions.items():
             for region, accounts in regions.items():
                 for account, resources in accounts.items():
                     for resource, actions in resources.items():
-                        permissions.append(("arn:aws:{}:{}:{}:{}".format(service, region, account, resource), actions))
+                        permissions["arn:aws:{}:{}:{}:{}".format(service, region, account, resource)] = actions
         return permissions
 
     # Processing (override these)
@@ -57,6 +55,7 @@ class Base(RuntimeBase, BaseApi):
         self._process_regions()
         self._process_resources()
         self._process_actions()
+
         self._cleanup()
 
     @abc.abstractmethod
@@ -78,8 +77,7 @@ class Base(RuntimeBase, BaseApi):
 
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account',
-        ...                 environment={ 'var1': "gigi eu-west-1 laus-east-2", 'var2': "eu-central-1 ca-central-1" })
+        >>> runtime = Runtime('path/to/function', environment={ 'var1': "gigi eu-west-1 laus-east-2", 'var2': "eu-central-1 ca-central-1" }, provider=object())
 
         >>> regions = set()
         >>> runtime._get_regions('filename', StringIO("lalala us-east-1 lululu us-west-1 us-east-2la us-west-5 nonono"), regions, 'dynamodb', '*')
@@ -127,7 +125,7 @@ class Base(RuntimeBase, BaseApi):
 
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', environment={}, provider=object())
 
         >>> mock.mock(Base, '_walk', lambda self, processor, possible_regions, service, account: possible_regions.update({'us-east-1', 'us-east-2'}))
         >>> runtime._permissions = {
@@ -206,23 +204,22 @@ class Base(RuntimeBase, BaseApi):
         >>> from tests.utils import normalize_dict
         >>> mock = Mock(__name__)
 
+        >>> class Provider:
+        ...     pass
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
-        >>> runtime.environment = {'var1': "gigi table-1 latable-6", 'var2': "table-2 table-3"}
+        >>> runtime = Runtime('path/to/function', environment={'var1': "gigi table-1 latable-6", 'var2': "table-2 table-3"}, provider=Provider())
+        >>> runtime.provider.cloudformation_template = None
 
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': ["table-1", "table-2", "table-3", "table-4", "table-5", "table-6"]}
-        >>> mock.mock(runtime, '_get_client', Client())
+        >>> mock.mock(runtime.provider, 'get_cached_api_result', {'TableNames': ["table-1", "table-2", "table-3", "table-4", "table-5", "table-6"]})
 
         >>> resources = defaultdict(set)
         >>> runtime._get_generic_resources('filename', StringIO("lalala table-4 lululu table-5 table-6la table-7 nonono"), resources, region='us-east-1', account='some-account',
         ...                                resource_format="table/{}", get_all_resources_method=partial(runtime._get_generic_all_resources, 'dynamodb', template_type='AWS::DynamoDB::Table', api_method='list_tables', api_attribute='TableNames'))
         >>> pprint(normalize_dict(resources))
         {'table/table-1': set(), 'table/table-2': set(), 'table/table-3': set(), 'table/table-4': set(), 'table/table-5': set()}
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
+        >>> mock.calls_for('Provider.get_cached_api_result')
+        'dynamodb', account='some-account', api_kwargs={}, api_method='list_tables', region='us-east-1'
         """
 
         all_resources = get_all_resources_method(region=region, account=account)
@@ -248,7 +245,7 @@ class Base(RuntimeBase, BaseApi):
 
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', environment={}, provider=object())
 
         >>> resources = defaultdict(set, {'table/sometable': set(), 'table/sometable/stream/somestream': set()})
         >>> actions = {'dynamodb:PutItem', 'dynamodb:GetRecords', 'dynamodb:DeleteItem', 'dynamodb:DescribeStream', 'dynamodb:ListTables'}
@@ -263,7 +260,7 @@ class Base(RuntimeBase, BaseApi):
         {'table/*/stream/*': {'dynamodb:DescribeStream', 'dynamodb:GetRecords'}, 'table/sometable': set()}
         """
 
-        matchers = BaseApi.SERVICE_RESOURCE_ACTION_MATCHERS.get(service)
+        matchers = Base.SERVICE_RESOURCE_ACTION_MATCHERS.get(service)
 
         if not matchers:
             if not resources:
@@ -296,7 +293,7 @@ class Base(RuntimeBase, BaseApi):
 
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', environment={}, provider=object())
 
         >>> runtime._permissions = {
         ...     'dynamodb': {'us-west-1': {'111': {'table/a': {'dynamodb:GetItem'}}}},
@@ -308,14 +305,14 @@ class Base(RuntimeBase, BaseApi):
          's3': {'': {'another-account': {'anotherbucket': {'s3:ListObjects'}}, 'some-account': {'*': {'s3:CreateBucket'}}}}}
         """
         # Region-less services
-        for service in BaseApi.REGIONLESS_SERVICES:
+        for service in Base.REGIONLESS_SERVICES:
             if service not in self._permissions:
                 continue
             merged = reduce(deepmerge, self._permissions[service].values())
             self._permissions[service].clear()
             self._permissions[service][''] = merged
 
-        for service, resourceless_actions in BaseApi.SERVICE_RESOURCELESS_ACTIONS.items():
+        for service, resourceless_actions in Base.SERVICE_RESOURCELESS_ACTIONS.items():
             if service not in self._permissions:
                 continue
             for region, accounts in self._permissions[service].items():
@@ -339,7 +336,7 @@ class Base(RuntimeBase, BaseApi):
         >>> from pprint import pprint
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', environment={}, provider=object())
 
         >>> tree = {'a': {'b': {'c': 1}, '*': {'d': 2}, 'e': {'f': 3}}}
         >>> runtime._normalize_permissions(tree)
@@ -371,7 +368,7 @@ class Base(RuntimeBase, BaseApi):
 
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', environment={}, provider=object())
 
         >>> resources = {'a': {'x'}, 'b': {'y'}, 'c': {'z'}}
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
@@ -431,7 +428,7 @@ class Base(RuntimeBase, BaseApi):
 
         >>> class Runtime(Base):
         ...     pass
-        >>> runtime = Runtime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+        >>> runtime = Runtime('path/to/function', environment={}, provider=object())
 
         >>> resources = {'table/sometable': {'a', 'b', 'c'}}
         >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])

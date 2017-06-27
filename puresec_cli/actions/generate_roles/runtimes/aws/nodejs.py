@@ -23,7 +23,14 @@ class NodejsRuntime(Base, NodejsApi):
         >>> from tests.utils import normalize_dict
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
-        >>> runtime = NodejsRuntime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={})
+
+        >>> class Provider:
+        ...     pass
+        >>> provider = Provider()
+        >>> provider.default_region = 'default_region'
+        >>> provider.default_account = 'default_account'
+
+        >>> runtime = NodejsRuntime('path/to/function', environment={}, provider=provider)
 
         >>> runtime._get_services("filename.txt", StringIO(".S3()"))
         >>> pprint(normalize_dict(runtime._permissions))
@@ -108,7 +115,7 @@ class NodejsRuntime(Base, NodejsApi):
                     # region
                     region = self._get_variable_from_arguments(arguments, NodejsRuntime.REGION_PATTERN)
                     if region is None:
-                        region = self.default_region
+                        region = self.provider.default_region
                     elif not region:
                         eprint("warn: incomprehensive region: {} (in {})", arguments, filename)
                         region = '*'
@@ -120,10 +127,10 @@ class NodejsRuntime(Base, NodejsApi):
                         eprint("warn: unknown account: {} (in {})", arguments, filename)
                         account = '*'
                     else:
-                        account = self.default_account
+                        account = self.provider.default_account
                 else:
-                    region = self.default_region
-                    account = self.default_account
+                    region = self.provider.default_region
+                    account = self.provider.default_account
 
                 self._permissions[service][region][account] # accessing to initialize defaultdict
 
@@ -163,7 +170,7 @@ class NodejsRuntime(Base, NodejsApi):
             2. None if argument doesn't exist
             3. '' if can't process argument value
 
-        >>> runtime = NodejsRuntime('path/to/function', config={}, cloudformation_template=None, session=None, default_region='default_region', default_account='default_account', environment={'var': "us-west-2"})
+        >>> runtime = NodejsRuntime('path/to/function', environment={'var': "us-west-2"}, provider=object())
 
         >>> runtime._get_variable_from_arguments('''{
         ...     region: bla(),

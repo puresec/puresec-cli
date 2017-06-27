@@ -28,10 +28,6 @@ class BaseApi:
             'states':   lambda self: self._get_states_resources,
             }
 
-    REGIONLESS_SERVICES = (
-            's3',
-            )
-
     SERVICE_RESOURCE_ACTION_MATCHERS = {
             # service: (resource_pattern, resource_default, (action, ...))
             'dynamodb': (
@@ -176,6 +172,10 @@ class BaseApi:
             ),
         }
 
+    REGIONLESS_SERVICES = (
+            's3',
+            )
+
     SERVICE_RESOURCELESS_ACTIONS = {
             'dynamodb': tuple(
                 # "CreateBucket" -> "s3:CreateBucket"
@@ -199,27 +199,6 @@ class BaseApi:
             )
         }
 
-    # { (client, api_method, api_kwargs): { resource: resource_pattern } } }
-    RESOURCE_CACHE = {}
-    def _get_cached_api_result(self, service, region, account, api_method, api_kwargs={}):
-        client = self._get_client(service, region, account)
-        if client is None:
-            eprint("error: cannot create {} client for region: '{}', account: '{}'", service, region, account)
-            return
-
-        cache_key = (client, api_method, frozenset(api_kwargs.items()))
-
-        result = BaseApi.RESOURCE_CACHE.get(cache_key)
-
-        if result is None:
-            try:
-                result = BaseApi.RESOURCE_CACHE[cache_key] = getattr(client, api_method)(**api_kwargs)
-            except botocore.exceptions.BotoCoreError as e:
-                eprint("error: failed to list resources on {}:\n{}", service, e)
-                raise SystemExit(-1)
-
-        return result
-
     RESOURCE_PATTERN = r"\b{}\b"
     def _get_generic_all_resources(self, service, region, account, template_type, api_method, api_attribute, api_inner_attribute=None, resource_converter=None, api_kwargs={}, warn=True):
         """
@@ -231,94 +210,70 @@ class BaseApi:
         ...     pass
         >>> runtime = Runtime()
 
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': []}
-        >>> mock.mock(runtime, '_get_client', Client())
+        >>> class Provider:
+        ...     pass
+        >>> runtime.provider = Provider()
 
-        >>> runtime.cloudformation_template = {'Resources': {'T1': {'Type': 'AWS::DynamoDB::Table', 'Properties': {'TableName': 'table-1'}},
-        ...                                                  'T2': {'Type': 'AWS::DynamoDB::Table', 'Properties': {'TableName': 'table-2'}},
-        ...                                                  'B1': {'Type': 'AWS::S3::Bucket', 'Properties': {'TableName': 'not-table-2'}}}}
+        >>> mock.mock(runtime.provider, 'get_cached_api_result', {'TableNames': []})
+
+        >>> runtime.provider.cloudformation_template = {'Resources': {'T1': {'Type': 'AWS::DynamoDB::Table', 'Properties': {'TableName': 'table-1'}},
+        ...                                                           'T2': {'Type': 'AWS::DynamoDB::Table', 'Properties': {'TableName': 'table-2'}},
+        ...                                                           'B1': {'Type': 'AWS::S3::Bucket', 'Properties': {'TableName': 'not-table-2'}}}}
         >>> pprint(runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames'))
         {'table-1': re.compile('\\\\btable\\\\-1\\\\b', re.IGNORECASE),
          'table-2': re.compile('\\\\btable\\\\-2\\\\b', re.IGNORECASE)}
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
+        >>> mock.calls_for('Provider.get_cached_api_result')
+        'dynamodb', account='some-account', api_kwargs={}, api_method='list_tables', region='us-east-1'
 
-        >>> runtime.cloudformation_template = None
+        >>> runtime.provider.cloudformation_template = None
 
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': ['table-1', 'table-2']}
-        >>> mock.mock(runtime, '_get_client', Client())
+        >>> mock.mock(runtime.provider, 'get_cached_api_result', {'TableNames': ['table-1', 'table-2']})
 
         >>> pprint(runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames'))
         {'table-1': re.compile('\\\\btable\\\\-1\\\\b', re.IGNORECASE),
          'table-2': re.compile('\\\\btable\\\\-2\\\\b', re.IGNORECASE)}
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
+        >>> mock.calls_for('Provider.get_cached_api_result')
+        'dynamodb', account='some-account', api_kwargs={}, api_method='list_tables', region='us-east-1'
 
-        >>> class Client:
-        ...     def list_buckets(self):
-        ...         return {'Buckets': [{'Name': "bucket-1"}, {'Name': "bucket-2"}]}
-        >>> mock.mock(runtime, '_get_client', Client())
+        >>> mock.mock(runtime.provider, 'get_cached_api_result', {'Buckets': [{'Name': "bucket-1"}, {'Name': "bucket-2"}]})
 
         >>> pprint(runtime._get_generic_all_resources('s3', 'us-east-1', 'some-account', 'AWS::S3::Bucket', 'list_buckets', 'Buckets', 'Name'))
         {'bucket-1': re.compile('\\\\bbucket\\\\-1\\\\b', re.IGNORECASE),
          'bucket-2': re.compile('\\\\bbucket\\\\-2\\\\b', re.IGNORECASE)}
-        >>> mock.calls_for('Runtime._get_client')
-        's3', 'us-east-1', 'some-account'
+        >>> mock.calls_for('Provider.get_cached_api_result')
+        's3', account='some-account', api_kwargs={}, api_method='list_buckets', region='us-east-1'
 
-        >>> class Client:
-        ...     def list_topics(self):
-        ...         return {'Topics': [{'TopicArn': "arn:aws:sns:us-east-1:123456789012:my_topic"}]}
-        >>> mock.mock(runtime, '_get_client', Client())
+        >>> mock.mock(runtime.provider, 'get_cached_api_result', {'Topics': [{'TopicArn': "arn:aws:sns:us-east-1:123456789012:my_topic"}]})
 
         >>> pprint(runtime._get_generic_all_resources('sns', 'us-east-1', 'some-account', 'AWS::SNS::Topic', 'list_topics', 'Topics', 'TopicArn',
         ...                                           resource_converter=lambda topic_arn: BaseApi.ARN_RESOURCE_PATTERN.match(topic_arn).group(1)))
         {'my_topic': re.compile('\\\\bmy_topic\\\\b', re.IGNORECASE)}
-        >>> mock.calls_for('Runtime._get_client')
-        'sns', 'us-east-1', 'some-account'
+        >>> mock.calls_for('Provider.get_cached_api_result')
+        'sns', account='some-account', api_kwargs={}, api_method='list_topics', region='us-east-1'
 
         >>> mock.mock(None, 'eprint')
 
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         return {'TableNames': []}
-        >>> mock.mock(runtime, '_get_client', Client())
+        >>> mock.mock(runtime.provider, 'get_cached_api_result', {'TableNames': []})
 
         >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames')
         {}
         >>> mock.calls_for('eprint')
         "warn: no {} resources ({}) on '{}:{}': {}({})", 'dynamodb', 'AWS::DynamoDB::Table', 'us-east-1', 'some-account', 'list_tables', ''
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
-
-        >>> class Client:
-        ...     def list_tables(self):
-        ...         raise botocore.exceptions.NoCredentialsError()
-        >>> mock.mock(runtime, '_get_client', Client())
-
-        >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames')
-        Traceback (most recent call last):
-        SystemExit: -1
-        >>> mock.calls_for('eprint')
-        'error: failed to list resources on {}:\\n{}', 'dynamodb', NoCredentialsError('Unable to locate credentials',)
-        >>> mock.calls_for('Runtime._get_client')
-        'dynamodb', 'us-east-1', 'some-account'
+        >>> mock.calls_for('Provider.get_cached_api_result')
+        'dynamodb', account='some-account', api_kwargs={}, api_method='list_tables', region='us-east-1'
         """
 
         resources = {}
 
-        if self.cloudformation_template and template_type:
+        if self.provider.cloudformation_template and template_type:
             name_attribute = "{}Name".format(template_type.split('::')[-1])
-            for logical_id, properties in self.cloudformation_template.get('Resources', {}).items():
+            for logical_id, properties in self.provider.cloudformation_template.get('Resources', {}).items():
                 if properties.get('Type') == template_type:
                     resource = properties.get('Properties', {}).get(name_attribute)
                     if resource:
                         resources[resource] = re.compile(BaseApi.RESOURCE_PATTERN.format(re.escape(resource)), re.IGNORECASE)
 
-        api_resources = self._get_cached_api_result(service, region=region, account=account, api_method=api_method, api_kwargs=api_kwargs)[api_attribute]
+        api_resources = self.provider.get_cached_api_result(service, region=region, account=account, api_method=api_method, api_kwargs=api_kwargs)[api_attribute]
 
         if api_inner_attribute:
             api_resources = (resource[api_inner_attribute] for resource in api_resources)
@@ -389,7 +344,7 @@ class BaseApi:
         state_machine_arns = dict(
                 (state_machine['name'], state_machine['stateMachineArn'])
                 for state_machine in
-                self._get_cached_api_result('stepfunctions', region=region, account=account, api_method='list_state_machines')['stateMachines']
+                self.provider.get_cached_api_result('stepfunctions', region=region, account=account, api_method='list_state_machines')['stateMachines']
                 )
         for state_machine in state_machines:
             if state_machine.endswith('*'):
@@ -398,71 +353,4 @@ class BaseApi:
                 state_machine = re.sub(r"^stateMachine:", '', state_machine)
                 self._get_generic_resources(filename, file, resources, region=region, account=account, resource_format="execution:{}:{{}}".format(state_machine),
                                             get_all_resources_method=partial(self._get_generic_all_resources, 'stepfunctions', template_type=None, api_method='list_executions', api_attribute='executions', api_inner_attribute='name', api_kwargs={'stateMachineArn': state_machine_arns[state_machine]}))
-
-    # { (service, region, account): client }
-    CLIENTS_CACHE = {}
-    def _get_client(self, service, region, account):
-        """
-        >>> from pprint import pprint
-        >>> from tests.mock import Mock
-        >>> mock = Mock(__name__)
-
-        >>> class Session:
-        ...     def client(self, *args, **kwargs):
-        ...         return (args, kwargs)
-        >>> class Runtime(BaseApi):
-        ...     pass
-        >>> runtime = Runtime()
-        >>> runtime.config = {}
-        >>> runtime.session = Session()
-        >>> runtime.default_account = 'default_account'
-
-        >>> pprint(runtime._get_client('dynamodb', 'us-east-1', 'default_account'))
-        (('dynamodb',), {'region_name': 'us-east-1'})
-
-        >>> mock.mock(None, 'eprint')
-        >>> pprint(runtime._get_client('dynamodb', 'us-east-1', '*'))
-        (('dynamodb',), {'region_name': 'us-east-1'})
-        >>> mock.calls_for('eprint')
-        "warn: unknown account ('*'), using default session"
-
-        >>> class Session:
-        ...     def client(self, *args, **kwargs):
-        ...         return (args, kwargs)
-        >>> mock.mock(boto3, 'Session', Session())
-        >>> mock.mock(None, 'input', lambda message: 'dummy')
-        >>> pprint(runtime._get_client('dynamodb', 'us-east-1', 'another_account'))
-        (('dynamodb',), {'region_name': 'us-east-1'})
-        >>> mock.calls_for('boto3.Session')
-        profile_name='dummy'
-        >>> pprint(runtime.config)
-        {'aws': {'accounts': {'another_account': {'profile': 'dummy'}}}}
-        """
-
-        client = BaseApi.CLIENTS_CACHE.get((service, region, account))
-        if client:
-            return client # from cache
-
-        if region == '*':
-            return None
-
-        if account == '*':
-            eprint("warn: unknown account ('*'), using default session")
-            client = self.session.client(
-                    service,
-                    region_name=region
-                    )
-        elif account == self.default_account:
-            client = self.session.client(
-                    service,
-                    region_name=region
-                    )
-        else:
-            account_config = self.config.setdefault('aws', {}).setdefault('accounts', {}).setdefault(account, {})
-            if not 'profile' in account_config:
-                account_config['profile'] = input("Enter configured AWS profile for {}: ".format(account))
-            client = boto3.Session(profile_name=account_config['profile']).client(service, region_name=region)
-
-        BaseApi.CLIENTS_CACHE[(service, region, account)] = client
-        return client
 
