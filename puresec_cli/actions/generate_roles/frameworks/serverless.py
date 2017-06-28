@@ -154,8 +154,8 @@ class ServerlessFramework(Base):
         >>> framework._serverless_config
         Traceback (most recent call last):
         SystemExit: -1
-        >>> mock.calls_for('eprint')
-        'error: invalid serverless-state.json:\\n{}', ValueError('Expecting value: line 1 column 1 (char 0)',)
+        >>> mock.calls_for('eprint') # ValueError for <=3.4, JSONDecodeError for >=3.5
+        'error: invalid serverless-state.json:\\n{}', ...Error('Expecting value: line 1 column 1 (char 0)',)
 
         >>> with mock.open('/tmp/package/serverless-state.json', 'w') as f:
         ...     f.write('{ "x": { "y": 1 }, "z": 2 }') and None

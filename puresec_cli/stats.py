@@ -246,7 +246,7 @@ class Stats:
         ...     'framework': 'serverless',
         ...     'framework_path': "path/to/sls",
         ...     'function': 'someFunction',
-        ...     'format': 'json',
+        ...     'yes': True,
         ... }
         >>> class SomeProvider:
         ...     def __init__(self, runtimes):
@@ -261,14 +261,14 @@ class Stats:
         >>> stats.result(action, "Successful run")
         >>> mock.calls_for('Stats._send')
         'Successful run', {'arguments': {'command': 'some-command',
-                       'format': 'json',
                        'framework': 'serverless',
                        'framework_path': True,
                        'function': True,
                        'path': 2,
                        'provider': 'aws',
                        'resource_template': True,
-                       'runtime': 'nodejs'},
+                       'runtime': 'nodejs',
+                       'yes': True},
          'environment': {'framework': 'SomeFramework',
                          'provider': 'SomeProvider',
                          'runtimes': {'java': 6, 'nodejs': 2, 'python': 4}},
@@ -281,14 +281,14 @@ class Stats:
         ...     stats.result(action, "Unexpected error")
         >>> mock.calls_for('Stats._send')
         'Unexpected error', {'arguments': {'command': 'some-command',
-                       'format': 'json',
                        'framework': 'serverless',
                        'framework_path': True,
                        'function': True,
                        'path': 2,
                        'provider': 'aws',
                        'resource_template': True,
-                       'runtime': 'nodejs'},
+                       'runtime': 'nodejs',
+                       'yes': True},
          'environment': {'framework': 'SomeFramework',
                          'provider': 'SomeProvider',
                          'runtimes': {'java': 6, 'nodejs': 2, 'python': 4}},

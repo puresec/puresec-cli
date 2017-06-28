@@ -1,0 +1,18 @@
+machine:
+  post:
+    - pyenv global 3.4.4 3.5.3 3.6.1
+
+dependencies:
+  override:
+    # CircleCI seems to be having an old setuptools/pip on 3.4 that cannot handle ruamel
+    - pip3.4 install --upgrade pip setuptools
+
+    - pip3.4 install --upgrade -r requirements.txt
+    - pip3.5 install --upgrade -r requirements.txt
+    - pip3.6 install --upgrade -r requirements.txt
+
+test:
+  override:
+    - python3.4 -m nose -c nose.cfg
+    - python3.5 -m nose -c nose.cfg
+    - python3.6 -m nose -c nose.cfg

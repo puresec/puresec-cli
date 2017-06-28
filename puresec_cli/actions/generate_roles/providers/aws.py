@@ -240,8 +240,8 @@ class AwsProvider(Base):
         >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json")
         Traceback (most recent call last):
         SystemExit: -1
-        >>> mock.calls_for('eprint')
-        'error: invalid CloudFormation template:\\n{}', ValueError('Expecting value: line 1 column 1 (char 0)',)
+        >>> mock.calls_for('eprint') # ValueError for <=3.4, JSONDecodeError for >=3.5
+        'error: invalid CloudFormation template:\\n{}', ...Error('Expecting value: line 1 column 1 (char 0)',)
 
         >>> with mock.open("path/to/cloudformation.json", 'w') as f:
         ...     f.write('{ "a": { "b": 1 } }') and None
