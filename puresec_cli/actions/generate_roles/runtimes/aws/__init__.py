@@ -1,4 +1,5 @@
 __all__ = [
-        'nodejs',
-        ]
+    'nodejs',
+    'python',
+]
 

@@ -184,3 +184,23 @@ def capitalize(string):
 def lowerize(string):
     return "{}{}".format(string[0].lower(), string[1:])
 
+SNAKECASE_PATTERN1 = re.compile(r"([A-Z])([A-Z][a-z])") # 'GetSMSAttributes' -> 'GetSMS_Attributes'
+SNAKECASE_PATTERN2 = re.compile(r"([a-z])([A-Z])")      # 'GetSMS_Attributes' -> 'Get_SMS_Attributes'
+def snakecase(string):
+    """
+    >>> snakecase('GetSMSAttributesNow')
+    'get_sms_attributes_now'
+    """
+
+    string = SNAKECASE_PATTERN1.sub(r"\g<1>_\g<2>", string)
+    string = SNAKECASE_PATTERN2.sub(r"\1_\2", string).lower()
+    return string
+
+def camelcase(string):
+    """
+    >>> camelcase('get_sms_attributes_now')
+    'GetSmsAttributesNow'
+    """
+
+    return string.title().replace('_', '')
+

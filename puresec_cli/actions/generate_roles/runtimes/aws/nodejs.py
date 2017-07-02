@@ -129,7 +129,7 @@ class NodejsRuntime(Base, NodejsApi):
 
     # Argument patterns
     ARGUMENT_PATTERN_TEMPLATE = r"['\"]?\b{}['\"]?\s*:\s*([^\s].*?)\s*(?:[,}}]|\Z)" # "VALUE": OUTPUT, or 'VALUE': OUTPUT} or VALUE: OUTPUT
-    REGION_PATTERN = re.compile(ARGUMENT_PATTERN_TEMPLATE.format('region'))
+    REGION_PATTERN = re.compile(ARGUMENT_PATTERN_TEMPLATE.format('region'), re.MULTILINE)
     AUTH_PATTERN = re.compile(r"accessKeyId|secretAccessKey|sessionToken|credentials")
     def _get_services(self, filename, contents):
         """
