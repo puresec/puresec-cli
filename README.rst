@@ -88,8 +88,8 @@ Install dependencies, run the tests, and run the CLI (without ``pip`` installing
 
 .. code:: bash
 
-    pip install -r requirements.txt
-    nosetests -c nose.cfg
+    ./setup.py install
+    ./setup.py test
     python -m puresec_cli --help
 
 Then fork and pull request!

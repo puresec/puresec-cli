@@ -7,12 +7,12 @@ dependencies:
     # CircleCI seems to be having an old setuptools/pip on 3.4 that cannot handle ruamel
     - pip3.4 install --upgrade pip setuptools
 
-    - pip3.4 install --upgrade -r requirements.txt
-    - pip3.5 install --upgrade -r requirements.txt
-    - pip3.6 install --upgrade -r requirements.txt
+    - python3.4 setup.py install
+    - python3.5 setup.py install
+    - python3.6 setup.py install
 
 test:
   override:
-    - python3.4 -m nose -c nose.cfg
-    - python3.5 -m nose -c nose.cfg
-    - python3.6 -m nose -c nose.cfg
+    - python3.4 setup.py test --cover-html --cover-html-dir=$CIRCLE_ARTIFACTS/coverage/python3.4
+    - python3.5 setup.py test --cover-html --cover-html-dir=$CIRCLE_ARTIFACTS/coverage/python3.5
+    - python3.6 setup.py test --cover-html --cover-html-dir=$CIRCLE_ARTIFACTS/coverage/python3.6

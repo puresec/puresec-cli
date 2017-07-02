@@ -32,6 +32,7 @@ setup(
         # AWS
         'boto3',
         'aws-parsecf',
-    ]
+    ],
+    setup_requires=['nose', 'coverage'],
 )
 
