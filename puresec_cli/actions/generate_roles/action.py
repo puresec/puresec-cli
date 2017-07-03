@@ -45,6 +45,21 @@ class GenerateRoles(Base):
         parser.add_argument('--function',
                             help="Only generate roles for a specific function.")
 
+        parser.add_argument('--overwrite', action='store_true',
+                            help="Overwrite previously generated files if they exist (e.g puresec-roles.yml).")
+        parser.add_argument('--no-overwrite', action='store_true',
+                            help="Don't overwrite previously generated files if they exist (will do nothing).")
+
+        parser.add_argument('--reference', action='store_true',
+                            help="Reference functions to newly created roles.")
+        parser.add_argument('--no-reference', action='store_true',
+                            help="Don't reference functions to newly created roles.")
+
+        parser.add_argument('--remove-obsolete', action='store_true',
+                            help="Remove obsolete roles that are no longer needed.")
+        parser.add_argument('--no-remove-obsolete', action='store_true',
+                            help="Don't remove obsolete roles that are no longer needed.")
+
         parser.add_argument('--yes', '-y', action='store_true',
                             help="Yes for all - overwrite files, remove old roles, etc.")
 
@@ -76,7 +91,7 @@ class GenerateRoles(Base):
                 path, config,
                 executable=self.args.framework_path,
                 function=self.args.function,
-                yes=self.args.yes,
+                args=self.args,
             )
             with framework:
                 yield framework
@@ -111,7 +126,7 @@ class GenerateRoles(Base):
             runtime=self.args.runtime,
             framework=framework,
             function=self.args.function,
-            yes=self.args.yes,
+            args=self.args,
         )
         with provider:
             yield provider

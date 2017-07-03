@@ -12,7 +12,7 @@ from puresec_cli.utils import eprint, input_query, capitalize
 yaml = YAML() # using non-breaking yaml now
 
 class ServerlessFramework(Base):
-    def __init__(self, path, config, executable=None, function=None, yes=False):
+    def __init__(self, path, config, executable=None, function=None, args=None):
         if not executable:
             executable = 'serverless' # from environment (PATH)
 
@@ -20,13 +20,13 @@ class ServerlessFramework(Base):
             path, config,
             executable=executable,
             function=function,
-            yes=yes
+            args=args
         )
 
         self.query_suffix = " (only for `{}`)".format(self.function) if self.function else ""
 
-        if not self.yes and os.path.exists(os.path.join(self.path, 'puresec-roles.yml')):
-            if not input_query("Roles file already exists, overwrite?" + self.query_suffix):
+        if os.path.exists(os.path.join(self.path, 'puresec-roles.yml')):
+            if not (self.args.yes or self.args.overwrite) and (self.args.no_overwrite or not input_query("Roles file already exists, overwrite?" + self.query_suffix)):
                 raise SystemExit(1)
 
     def __exit__(self, type, value, traceback):
@@ -74,7 +74,12 @@ class ServerlessFramework(Base):
         >>> provider = Provider()
         >>> provider.roles = {'PureSecSomeRole': "some role", 'PureSecAnotherRole': "another role"}
 
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._dump_roles(provider)
+        >>> class Args:
+        ...     pass
+        >>> args = Args()
+        >>> args.yes = True
+
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._dump_roles(provider)
         >>> with mock.open("path/to/project/puresec-roles.yml", 'r') as f:
         ...     pprint(dict(yaml.load(f)))
         {'PureSecAnotherRole': 'another role', 'PureSecSomeRole': 'some role'}
@@ -82,13 +87,13 @@ class ServerlessFramework(Base):
 
         >>> with mock.open("path/to/project/puresec-roles.yml", 'w') as f:
         ...     f.write("something to overwrite") and None
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._dump_roles(provider)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._dump_roles(provider)
         >>> with mock.open("path/to/project/puresec-roles.yml", 'r') as f:
         ...     pprint(dict(yaml.load(f)))
         {'PureSecAnotherRole': 'another role', 'PureSecSomeRole': 'some role'}
         >>> mock.clear_filesystem()
 
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", yes=True)._dump_roles(provider)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", args=args)._dump_roles(provider)
         >>> with mock.open("path/to/project/puresec-roles.yml", 'r') as f:
         ...     pprint(dict(yaml.load(f)))
         {'PureSecSomeRole': 'some role'}
@@ -97,7 +102,7 @@ class ServerlessFramework(Base):
         >>> provider.roles = {'PureSecSomeRole': "changed role", 'PureSecAnotherRole': "another changed role"}
         >>> with mock.open("path/to/project/puresec-roles.yml", 'w') as f:
         ...     yaml.dump({'PureSecSomeRole': "some role", 'PureSecAnotherRole': "another role"}, f)
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", yes=True)._dump_roles(provider)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", args=args)._dump_roles(provider)
         >>> with mock.open("path/to/project/puresec-roles.yml", 'r') as f:
         ...     pprint(dict(yaml.load(f)))
         {'PureSecAnotherRole': 'another role', 'PureSecSomeRole': 'changed role'}
@@ -221,32 +226,41 @@ class ServerlessFramework(Base):
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
 
+        >>> class Args:
+        ...     pass
+        >>> args = Args()
+        >>> args.yes = True
+
         >>> permissions = {'some': "some permissions", 'another': "another permissions"}
 
         >>> config = {'functions': {'some': {}, 'another': {}}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._reference_roles(permissions, config)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._reference_roles(permissions, config)
         >>> pprint(config)
         {'functions': {'another': {'role': 'puresecAnotherRole'}, 'some': {'role': 'puresecSomeRole'}}}
 
         >>> mock.mock(None, 'eprint')
 
         >>> config = {'functions': {'another': {}}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._reference_roles(permissions, config)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._reference_roles(permissions, config)
         >>> pprint(config)
         {'functions': {'another': {'role': 'puresecAnotherRole'}}}
         >>> mock.calls_for('eprint')
         'warn: `{}` not found under the `functions` section in serverless.yml', 'some'
 
         >>> config = {}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._reference_roles(permissions, config)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._reference_roles(permissions, config)
         >>> pprint(config)
         {}
         >>> mock.calls_for('eprint')
         'warn: `functions` section not found in serverless.yml'
 
+        >>> args.yes = False
+        >>> args.reference = False
+        >>> args.no_reference = False
+
         >>> mock.mock(None, 'input_query', False)
         >>> config = {'functions': {'some': {}, 'another': {}}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls")._reference_roles(permissions, config)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._reference_roles(permissions, config)
         >>> pprint(config)
         {'functions': {'another': {}, 'some': {}}}
         >>> mock.calls_for('input_query')
@@ -254,7 +268,7 @@ class ServerlessFramework(Base):
 
         >>> mock.mock(None, 'input_query', True)
         >>> config = {'functions': {'some': {}, 'another': {}}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls")._reference_roles(permissions, config)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._reference_roles(permissions, config)
         >>> pprint(config)
         {'functions': {'another': {'role': 'puresecAnotherRole'}, 'some': {'role': 'puresecSomeRole'}}}
         >>> mock.calls_for('input_query')
@@ -265,7 +279,7 @@ class ServerlessFramework(Base):
             eprint("warn: `functions` section not found in serverless.yml")
             return
 
-        if self.yes or input_query("Reference functions to new roles?" + self.query_suffix):
+        if (self.args.yes or self.args.reference) or (not self.args.no_reference and input_query("Reference functions to new roles?" + self.query_suffix)):
             for name in permissions.keys():
                 if name not in config['functions']:
                     eprint("warn: `{}` not found under the `functions` section in serverless.yml", name)
@@ -276,60 +290,65 @@ class ServerlessFramework(Base):
         """
         >>> from pprint import pprint
 
+        >>> class Args:
+        ...     pass
+        >>> args = Args()
+        >>> args.yes = True
+
         >>> old_roles = ['someRole']
 
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._remove_old_roles({}, {}, {}, old_roles, set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._remove_old_roles({}, {}, {}, old_roles, set())
 
         >>> config = {'provider': {'iamRoleStatements': "some roles"}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._remove_old_roles(config, {}, {}, old_roles, set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._remove_old_roles(config, {}, {}, old_roles, set())
         >>> config
         {}
 
         >>> config = {'provider': {'iamRoleStatements': "some roles", 'name': 'aws'}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._remove_old_roles(config, {}, {}, old_roles, set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._remove_old_roles(config, {}, {}, old_roles, set())
         >>> config
         {'provider': {'name': 'aws'}}
 
         >>> config = {'provider': {'iamRoleStatements': "some roles"}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", yes=True)._remove_old_roles(config, {}, {}, [], set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", args=args)._remove_old_roles(config, {}, {}, [], set())
         >>> config
         {'provider': {'iamRoleStatements': 'some roles'}}
 
         >>> old_resources = {'someRole': {'Type': 'AWS::IAM::Role', 'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Effect': 'Allow', 'Principal': {'Service': ['lambda.amazonaws.com']}, 'Action': 'sts:AssumeRole'}]}}}}
         >>> new_resources = {'someRole': {'Type': 'AWS::IAM::Role', 'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Effect': 'Allow', 'Principal': {'Service': ['lambda.amazonaws.com']}, 'Action': 'sts:AssumeRole'}]}}}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._remove_old_roles({}, old_resources, new_resources, old_roles, set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._remove_old_roles({}, old_resources, new_resources, old_roles, set())
         >>> new_resources
         {}
 
         >>> old_resources = {'someRole': {'Type': 'AWS::IAM::Role', 'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Effect': 'Allow', 'Principal': {'Service': ['lambda.amazonaws.com']}, 'Action': 'sts:AssumeRole'}]}}}}
         >>> new_resources = {'someRole': {'Type': 'AWS::IAM::Role', 'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Effect': 'Allow', 'Principal': {'Service': ['lambda.amazonaws.com']}, 'Action': 'sts:AssumeRole'}]}}}}
         >>> new_roles = {'someRole'}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._remove_old_roles({}, old_resources, new_resources, old_roles, new_roles)
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._remove_old_roles({}, old_resources, new_resources, old_roles, new_roles)
         >>> pprint(new_resources)
         {'someRole': {'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Action': 'sts:AssumeRole', 'Effect': 'Allow', 'Principal': {'Service': ['lambda.amazonaws.com']}}]}}, 'Type': 'AWS::IAM::Role'}}
 
         >>> old_resources = {'dynamodbTable': {'Type': 'AWS::DynamoDB::Table'}}
         >>> new_resources = {'dynamodbTable': {'Type': 'AWS::DynamoDB::Table'}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._remove_old_roles({}, old_resources, new_resources, old_roles, set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._remove_old_roles({}, old_resources, new_resources, old_roles, set())
         >>> new_resources
         {'dynamodbTable': {'Type': 'AWS::DynamoDB::Table'}}
 
         >>> old_resources = {'ec2Role': {'Type': 'AWS::IAM::Role', 'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Effect': 'Allow', 'Principal': {'Service': ['ec2.amazonaws.com']}, 'Action': 'sts:AssumeRole'}]}}}}
         >>> new_resources = {'ec2Role': {'Type': 'AWS::IAM::Role', 'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Effect': 'Allow', 'Principal': {'Service': ['ec2.amazonaws.com']}, 'Action': 'sts:AssumeRole'}]}}}}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", yes=True)._remove_old_roles({}, old_resources, new_resources, old_roles, set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", args=args)._remove_old_roles({}, old_resources, new_resources, old_roles, set())
         >>> pprint(new_resources)
         {'ec2Role': {'Properties': {'AssumeRolePolicyDocument': {'Statement': [{'Action': 'sts:AssumeRole', 'Effect': 'Allow', 'Principal': {'Service': ['ec2.amazonaws.com']}}]}}, 'Type': 'AWS::IAM::Role'}}
 
         >>> config = {'functions': {'some': {'role': "someRole"}}}
         >>> new_resources = {'someRole': "some role", 'anotherRole': "another role"}
-        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", yes=True)._remove_old_roles(config, {}, new_resources, old_roles, set())
+        >>> ServerlessFramework("path/to/project", {}, executable="ls", function="some", args=args)._remove_old_roles(config, {}, new_resources, old_roles, set())
         >>> new_resources
         {'anotherRole': 'another role'}
         """
 
         if old_roles:
             old_roles_format = "\n".join("\t- {}".format(role) for role in old_roles)
-            if self.yes or input_query("These roles are now obsolete:\n{}\nWould you like to remove them?".format(old_roles_format)):
+            if (self.args.yes or self.args.remove_obsolete) or (not self.args.no_remove_obsolete and input_query("These roles are now obsolete:\n{}\nWould you like to remove them?".format(old_roles_format))):
                 # default role
                 if not self.function and 'iamRoleStatements' in config.get('provider', ()):
                     del config['provider']['iamRoleStatements']

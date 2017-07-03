@@ -15,7 +15,7 @@ import yaml
 import weakref
 
 class AwsProvider(Base, AwsApi):
-    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None, yes=False):
+    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None, args=None):
         """
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
@@ -41,7 +41,7 @@ class AwsProvider(Base, AwsApi):
             runtime=runtime,
             framework=framework,
             function=function,
-            yes=yes
+            args=args
         )
 
         if not self.resource_template and not self.runtime:
