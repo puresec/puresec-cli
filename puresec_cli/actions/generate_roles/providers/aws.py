@@ -394,14 +394,14 @@ class AwsProvider(Base, AwsApi):
             resources = self.cloudformation_template.get('Resources', {})
         else:
             resources = {
-                    'UnnamedFunction': {
-                        'Type': 'AWS::Lambda::Function',
-                        'Properties': {
-                            'FunctionName': 'Unnamed',
-                            'Runtime': self.runtime,
-                            }
-                        }
+                'UnnamedFunction': {
+                    'Type': 'AWS::Lambda::Function',
+                    'Properties': {
+                        'FunctionName': 'Unnamed',
+                        'Runtime': self.runtime,
                     }
+                }
+            }
 
         for resource_id, resource_config in resources.items():
             if resource_config['Type'] == 'AWS::Lambda::Function':
@@ -429,12 +429,10 @@ class AwsProvider(Base, AwsApi):
                 if runtime not in runtimes.__all__:
                     eprint("warn: lambda runtime not supported: `{}` (for `{}`), sorry :(", runtime, name)
                     continue
-                # Getting environment
-                environment = resource_config.get('Properties', {}).get('Environment', {}).get('Variables', {})
 
                 runtime = import_module("puresec_cli.actions.generate_roles.runtimes.aws.{}".format(runtime)).Runtime(
                     root,
-                    environment=environment,
+                    resource_properties=resource_config['Properties'],
                     provider=weakref.proxy(self),
                 )
 

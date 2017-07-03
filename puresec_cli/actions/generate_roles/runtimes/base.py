@@ -10,6 +10,7 @@ class Base:
 
     MAX_FILE_SIZE = 5 * 1024 * 1024 # 5MB
 
+    # processor: function(filename, contents, *args, **kwargs)
     def _walk(self, processor, *args, **kwargs):
         """
         >>> from collections import namedtuple
@@ -18,14 +19,14 @@ class Base:
 
         >>> processed = []
         >>> class Runtime(Base):
-        ...     def processor(self, filename, file, custom_positional, custom_keyword):
-        ...         processed.append((filename, file.read(), custom_positional, custom_keyword))
+        ...     def processor(self, filename, contents, custom_positional, custom_keyword):
+        ...         processed.append((filename, contents, custom_positional, custom_keyword))
 
         >>> mock.filesystem = {'path': {'to': {'function': {
         ...     'a': True,
         ...     'b': {'c': True, 'd': True},
         ...     'e': True,
-        ...     }}}}
+        ... }}}}
         >>> with mock.open("path/to/function/a", 'w') as f:
         ...     f.write("a content") and None
         >>> with mock.open("path/to/function/b/c", 'w') as f:
@@ -46,15 +47,15 @@ class Base:
          ('path/to/function/b/d', 'd content', 'positional', 'keyword')]
         """
 
-        for path, dirs, files in os.walk(self.root):
-            for file in files:
-                filename = os.path.join(path, file)
+        for path, dirs, filenames in os.walk(self.root):
+            for filename in filenames:
+                filename = os.path.join(path, filename)
 
                 if self._stat(filename).st_size >= Base.MAX_FILE_SIZE:
                     continue
 
                 with open(filename, 'r', errors='replace') as file:
-                    processor(filename, file, *args, **kwargs)
+                    processor(filename, file.read(), *args, **kwargs)
 
     def _stat(self, filename):
         """ Making os.stat testable again. """

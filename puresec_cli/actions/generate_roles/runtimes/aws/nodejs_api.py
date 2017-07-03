@@ -26,7 +26,7 @@ class NodejsApi:
     ]
 
     SERVICE_ACTIONS_PROCESSOR = {
-        # service: function(self, filename, file, actions)
+        # service: function(self, filename, contents, actions)
         'dynamodb': lambda self: partial(self._get_generic_actions, service='dynamodb'),
         'kinesis':  lambda self: partial(self._get_generic_actions, service='kinesis'),
         'kms':      lambda self: partial(self._get_generic_actions, service='kms'),
@@ -259,25 +259,23 @@ class NodejsApi:
     ),
     }
 
-    def _get_generic_actions(self, filename, file, actions, service, patterns=None):
+    def _get_generic_actions(self, filename, contents, actions, service, patterns=None):
         """
-        >>> from io import StringIO
         >>> runtime = NodejsApi()
 
         >>> actions = set()
-        >>> runtime._get_generic_actions("path/to/file.js", StringIO("code .putItem() code"), actions, service='dynamodb')
+        >>> runtime._get_generic_actions("path/to/file.js", "code .putItem() code", actions, service='dynamodb')
         >>> sorted(actions)
         ['dynamodb:PutItem']
 
         >>> actions = set()
-        >>> runtime._get_generic_actions("path/to/file.js", StringIO("code .putObject(params) .getSignedUrl('getObject', params) code"), actions, service='s3')
+        >>> runtime._get_generic_actions("path/to/file.js", "code .putObject(params) .getSignedUrl('getObject', params) code", actions, service='s3')
         >>> sorted(actions)
         ['s3:GetObject', 's3:PutObject']
         """
         if patterns is None:
             patterns = NodejsApi.ACTION_CALL_PATTERNS[service]
-        content = file.read()
         for action, pattern in patterns:
-            if pattern.search(content):
+            if pattern.search(contents):
                 actions.add(action)
 

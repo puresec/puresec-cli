@@ -1,12 +1,13 @@
-from puresec_cli.actions.generate_roles.frameworks.base import Base
-from puresec_cli.utils import eprint, input_query, capitalize
 from ruamel.yaml import YAML
-from subprocess import Popen, PIPE, STDOUT
 from tempfile import TemporaryDirectory
 from zipfile import ZipFile, BadZipFile
 import json
 import os
 import re
+import subprocess
+
+from puresec_cli.actions.generate_roles.frameworks.base import Base
+from puresec_cli.utils import eprint, input_query, capitalize
 
 yaml = YAML() # using non-breaking yaml now
 
@@ -371,16 +372,14 @@ class ServerlessFramework(Base):
             self._serverless_package = TemporaryDirectory(prefix="puresec-")
 
             try:
-                process = Popen([self.executable, 'package', '--package', self._serverless_package.name], cwd=self.path, stdout=PIPE, stderr=STDOUT)
+                # Suppressing output
+                subprocess.check_output([self.executable, 'package', '--package', self._serverless_package.name], cwd=self.path, stderr=subprocess.STDOUT)
             except FileNotFoundError:
                 eprint("error: serverless framework not installed, try using --framework-path")
                 raise SystemExit(-1)
-
-            result = process.wait()
-            if result != 0:
-                output, _ = process.communicate()
-                eprint("error: serverless package failed:\n{}", output.decode())
-                raise SystemExit(result)
+            except subprocess.CalledProcessError as e:
+                eprint("error: serverless package failed:\n{}", e.output.decode())
+                raise SystemExit(e.returncode)
 
     @property
     def _serverless_config(self):

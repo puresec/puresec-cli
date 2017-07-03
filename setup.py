@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
+import distutils.cmd
+import setuptools.command.bdist_egg
+
 import re
+import subprocess
 
 def find_version():
     with open('puresec_cli/__init__.py') as f:
@@ -11,6 +15,22 @@ def find_version():
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
 
+class NPMInstall(distutils.cmd.Command):
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        self.announce("Running command: npm install", level=distutils.log.INFO)
+        subprocess.check_call(['npm', 'install', '.', '--prefix', 'puresec_cli'])
+
+class BdistEggCommand(setuptools.command.bdist_egg.bdist_egg):
+    def run(self):
+        self.run_command('npm_install')
+        super().run()
+
 setup(
     name='puresec-cli',
     version=find_version(),
@@ -18,7 +38,12 @@ setup(
     long_description=open('README.rst').read(),
     author='PureSec <support@puresec.io>',
     url='https://github.com/puresec/puresec-cli',
+    cmdclass={
+        'npm_install': NPMInstall,
+        'bdist_egg': BdistEggCommand,
+    },
     packages=find_packages(exclude=['tests*']),
+    include_package_data=True,
     entry_points={
         'console_scripts': [
             'puresec=puresec_cli.cli:main',
