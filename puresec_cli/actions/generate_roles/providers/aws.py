@@ -334,7 +334,7 @@ class AwsProvider(Base, AwsApi):
         ... }
         >>> handler.process()
         >>> mock.calls_for('eprint')
-        'warn: lambda runtime not supported: `{}` (for `{}`), sorry :(', 'abc', 'functionName'
+        'warn: lambda runtime not yet supported: `{}` (for `{}`)', 'abc', 'functionName'
         >>> handler._function_permissions
         {}
 
@@ -427,7 +427,7 @@ class AwsProvider(Base, AwsApi):
                 self._runtime_counter[runtime] += 1
 
                 if runtime not in runtimes.__all__:
-                    eprint("warn: lambda runtime not supported: `{}` (for `{}`), sorry :(", runtime, name)
+                    eprint("warn: lambda runtime not yet supported: `{}` (for `{}`)", runtime, name)
                     continue
 
                 runtime = import_module("puresec_cli.actions.generate_roles.runtimes.aws.{}".format(runtime)).Runtime(

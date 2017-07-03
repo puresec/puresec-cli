@@ -387,14 +387,14 @@ class Base(RuntimeBase, BaseApi):
         >>> resources = defaultdict(set)
         >>> runtime._normalize_resources(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
-        "warn: unknown resources for '{}'", 'dynamodb:us-west-1'
+        "warn: unknown resources for '{}', couldn't find anything relevant in your AWS account or CloudFormation, falling back to '*'", 'dynamodb:us-west-1'
         >>> dict(resources)
         {'*': set()}
         """
 
         if not resources:
             resources['*'] # accessing to initialize defaultdict
-            eprint("warn: unknown resources for '{}'", ':'.join(parents))
+            eprint("warn: unknown resources for '{}', couldn't find anything relevant in your AWS account or CloudFormation, falling back to '*'", ':'.join(parents))
         else:
             # mapping all resources wildcard matching to others
             wildcard_matches = {}
@@ -451,7 +451,7 @@ class Base(RuntimeBase, BaseApi):
         >>> resources = {'table/sometable': set()}
         >>> runtime._normalize_actions(resources, ['dynamodb', 'us-west-1'])
         >>> mock.calls_for('eprint')
-        "warn: unknown actions for '{}:{}'", 'dynamodb:us-west-1', 'table/sometable'
+        "warn: unknown actions for '{}:{}', couldn't find any relevant SDK methods in your code, falling back to '*'", 'dynamodb:us-west-1', 'table/sometable'
         >>> pprint(normalize_dict(resources))
         {'table/sometable': {'*'}}
 
@@ -470,7 +470,7 @@ class Base(RuntimeBase, BaseApi):
                     del resources[resource]
                 else:
                     actions.add('*')
-                    eprint("warn: unknown actions for '{}:{}'", ':'.join(parents), resource)
+                    eprint("warn: unknown actions for '{}:{}', couldn't find any relevant SDK methods in your code, falling back to '*'", ':'.join(parents), resource)
             elif '*' in actions:
                 actions.clear()
                 actions.add('*')

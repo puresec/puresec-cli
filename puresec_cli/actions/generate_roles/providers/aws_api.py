@@ -259,7 +259,8 @@ class AwsApi:
             return client # from cache
 
         if region == '*':
-            return None
+            eprint("warn: unknown region ('*'), using the default ('{}')", self.default_region)
+            region = self.default_region
 
         if account == '*':
             eprint("warn: unknown account ('*'), using default session")

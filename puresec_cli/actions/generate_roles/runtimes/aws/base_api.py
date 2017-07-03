@@ -258,7 +258,7 @@ class BaseApi:
         >>> runtime._get_generic_all_resources('dynamodb', 'us-east-1', 'some-account', 'AWS::DynamoDB::Table', 'list_tables', 'TableNames')
         {}
         >>> mock.calls_for('eprint')
-        "warn: no {} resources ({}) on '{}:{}': {}({})", 'dynamodb', 'AWS::DynamoDB::Table', 'us-east-1', 'some-account', 'list_tables', ''
+        "warn: no {} resources ({}) on '{}:{}', you're using this service but your AWS account and CloudFormation are empty", 'dynamodb', 'AWS::DynamoDB::Table', 'us-east-1', 'some-account'
         >>> mock.calls_for('Provider.get_cached_api_result')
         'dynamodb', account='some-account', api_kwargs={}, api_method='list_tables', region='us-east-1'
         """
@@ -288,9 +288,9 @@ class BaseApi:
         if not resources and warn:
             if not hasattr(self, '_no_resources_warnings'):
                 self._no_resources_warnings = set()
-            warning_arguments = (service, region, account, api_method, frozenset(api_kwargs.items()))
+            warning_arguments = (service, template_type, region, account)
             if warning_arguments not in self._no_resources_warnings:
-                eprint("warn: no {} resources ({}) on '{}:{}': {}({})", service, template_type, region, account, api_method, api_kwargs or '')
+                eprint("warn: no {} resources ({}) on '{}:{}', you're using this service but your AWS account and CloudFormation are empty", *warning_arguments)
                 self._no_resources_warnings.add(warning_arguments)
             return {}
 

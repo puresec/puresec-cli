@@ -107,7 +107,7 @@ class GenerateRoles(Base):
                         eprint("error: conflict between --provider ('{}') option and framework ('{}')".format(self.args.provider, provider))
                         raise SystemExit(2)
                 elif provider not in providers.__all__:
-                    eprint("error: unsupported provider received from framework: '{}', sorry :(".format(provider))
+                    eprint("error: provider not yet supported: '{}'".format(provider))
                     raise SystemExit(2)
             else:
                 if not self.args.provider:

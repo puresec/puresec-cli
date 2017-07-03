@@ -394,7 +394,7 @@ class ServerlessFramework(Base):
                 # Suppressing output
                 subprocess.check_output([self.executable, 'package', '--package', self._serverless_package.name], cwd=self.path, stderr=subprocess.STDOUT)
             except FileNotFoundError:
-                eprint("error: serverless framework not installed, try using --framework-path")
+                eprint("error: serverless framework not installed, run `npm install -g severless` (or use --framework-path if not globally installed)")
                 raise SystemExit(-1)
             except subprocess.CalledProcessError as e:
                 eprint("error: serverless package failed:\n{}", e.output.decode())
