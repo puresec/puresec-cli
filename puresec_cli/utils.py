@@ -2,7 +2,7 @@ from termcolor import colored
 import re
 import sys
 
-eprinted = []
+from puresec_cli import stats
 
 ANONYMIZED_VALUE = "<ANONYMIZED>"
 
@@ -20,41 +20,43 @@ def eprint(message, *format_args, **format_kwargs):
     >>> from tests.mock import Mock
     >>> mock = Mock(__name__)
 
+    >>> stats.payload.clear()
+
     >>> eprint("hello")
     hello
-    >>> eprinted
+    >>> stats.payload['eprinted']
     ['hello']
 
-    >>> eprinted.clear()
+    >>> stats.payload.clear()
 
     >>> eprint("hello: {}", "John")
     hello: John
-    >>> eprinted
+    >>> stats.payload['eprinted']
     ['hello: <ANONYMIZED>']
 
-    >>> eprinted.clear()
+    >>> stats.payload.clear()
 
     >>> eprint("hello: {name}", name="John")
     hello: John
-    >>> eprinted
+    >>> stats.payload['eprinted']
     ['hello: <ANONYMIZED>']
 
-    >>> eprinted.clear()
+    >>> stats.payload.clear()
 
     >>> eprint("exception: {}", SystemExit(1))
     exception: 1
-    >>> eprinted
+    >>> stats.payload['eprinted']
     ['exception: 1']
 
-    >>> eprinted.clear()
+    >>> stats.payload.clear()
 
     >>> eprint("exception: {exc}", exc=SystemExit(1))
     exception: 1
-    >>> eprinted
+    >>> stats.payload['eprinted']
     ['exception: 1']
     """
 
-    eprinted.append(
+    stats.payload.setdefault('eprinted', []).append(
         message.format(
             *(value if isinstance(value, BaseException) else ANONYMIZED_VALUE for value in format_args),
             **dict((key, value if isinstance(value, BaseException) else ANONYMIZED_VALUE) for key, value in format_kwargs.items())

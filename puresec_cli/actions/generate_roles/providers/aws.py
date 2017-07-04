@@ -1,10 +1,6 @@
 from collections import defaultdict
 from functools import partial
 from importlib import import_module
-from puresec_cli.actions.generate_roles.providers.base import Base
-from puresec_cli.actions.generate_roles.providers.aws_api import AwsApi
-from puresec_cli.actions.generate_roles.runtimes import aws as runtimes
-from puresec_cli.utils import eprint, capitalize
 import aws_parsecf
 import boto3
 import botocore
@@ -13,6 +9,11 @@ import os
 import re
 import yaml
 import weakref
+
+from puresec_cli.actions.generate_roles.providers.base import Base
+from puresec_cli.actions.generate_roles.providers.aws_api import AwsApi
+from puresec_cli.actions.generate_roles.runtimes import aws as runtimes
+from puresec_cli.utils import eprint, capitalize
 
 class AwsProvider(Base, AwsApi):
     def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None, args=None):
@@ -103,10 +104,6 @@ class AwsProvider(Base, AwsApi):
     def result(self):
         resources = {'Resources': self.roles()}
         print(AwsProvider.TEMPLATE_DUMPERS[self.cloudformation_filetype or '.yml'](resources))
-
-    @property
-    def runtimes(self):
-        return dict(getattr(self, '_runtime_counter', {}))
 
     def _init_session(self):
         """
@@ -388,7 +385,6 @@ class AwsProvider(Base, AwsApi):
         """
         self._function_real_names = {}
         self._function_permissions = {}
-        self._runtime_counter = defaultdict(int)
 
         if self.cloudformation_template:
             resources = self.cloudformation_template.get('Resources', {})
@@ -424,7 +420,6 @@ class AwsProvider(Base, AwsApi):
                     raise SystemExit(2)
 
                 runtime = re.sub(r"[\d\.]+$", '', runtime) # ignoring runtime version (e.g nodejs4.3)
-                self._runtime_counter[runtime] += 1
 
                 if runtime not in runtimes.__all__:
                     eprint("warn: lambda runtime not yet supported: `{}` (for `{}`)", runtime, name)

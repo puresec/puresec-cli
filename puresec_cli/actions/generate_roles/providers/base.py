@@ -1,4 +1,5 @@
 from puresec_cli.utils import eprint
+from puresec_cli import stats
 import abc
 
 class Base:
@@ -22,6 +23,8 @@ class Base:
         >>> Provider("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", {}, 'ls')).resource_template
         'path/to/custom_resource_template'
         """
+
+        stats.payload['environment']['provider'] = type(self).__name__
 
         self.path = path
         self.config = config

@@ -1,10 +1,16 @@
+from collections import defaultdict
 import abc
 import os
+
+from puresec_cli import stats
 
 class Base:
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, root, provider):
+        # {'environment': {'runtimes': {'NodejsRuntime': 2, 'PythonRuntime': 1}}}
+        stats.payload['environment'].setdefault('runtimes', defaultdict(int))[type(self).__name__] += 1
+
         self.root = root
         self.provider = provider
 

@@ -12,9 +12,8 @@ from urllib import request
 import urllib.error
 import json
 
-from puresec_cli import actions
+from puresec_cli import actions, stats
 from puresec_cli.utils import eprint
-from puresec_cli.stats import Stats
 import puresec_cli
 
 def check_version():
@@ -61,9 +60,6 @@ def main(argv=None):
 
     args = parser.parse_args()
 
-    stats = Stats()
-    stats.args = args
-
     ran = False
 
     if args.stats:
@@ -72,17 +68,18 @@ def main(argv=None):
 
     if hasattr(args, 'action'):
         ran = True
+        stats.payload['arguments']['command'] = action.command()
         try:
-            action = args.action(args, stats)
+            action = args.action(args)
             action.run()
         except SystemExit:
-            stats.result(action, 'Expected error')
+            stats.result('Expected error')
             raise
         except Exception:
-            stats.result(action, 'Unexpected error')
+            stats.result('Unexpected error')
             raise
         else:
-            stats.result(action, 'Successful run')
+            stats.result('Successful run')
 
     if not ran:
         parser.print_usage()
