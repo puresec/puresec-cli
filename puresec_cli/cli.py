@@ -13,7 +13,7 @@ from puresec_cli.stats import Stats
 
 def main(argv=None):
     parser = ArgumentParser(
-        description="Set of wonderful tools to improve your serverless security (and social life)."
+        description="PureSec CLI tools for improving the security of your serverless applications."
     )
 
     parser.add_argument('--stats', choices=['enable', 'disable'],
