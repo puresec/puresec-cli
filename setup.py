@@ -3,6 +3,7 @@
 from setuptools import setup, find_packages
 import distutils.cmd
 import setuptools.command.bdist_egg
+import setuptools.command.sdist
 
 import re
 import subprocess
@@ -31,6 +32,11 @@ class BdistEggCommand(setuptools.command.bdist_egg.bdist_egg):
         self.run_command('npm_install')
         super().run()
 
+class SdistCommand(setuptools.command.sdist.sdist):
+    def run(self):
+        self.run_command('npm_install')
+        super().run()
+
 setup(
     name='puresec-cli',
     version=find_version(),
@@ -41,6 +47,7 @@ setup(
     cmdclass={
         'npm_install': NPMInstall,
         'bdist_egg': BdistEggCommand,
+        'sdist': SdistCommand,
     },
     packages=find_packages(exclude=['tests*']),
     include_package_data=True,
