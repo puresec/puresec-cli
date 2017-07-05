@@ -1,6 +1,11 @@
 Core engine for `serverless-puresec-cli <https://github.com/puresec/serverless-puresec-cli/>`_
 ..............................................................................................
 
+Requirements
+------------
+
+- Python 3.4+
+
 Usage
 -----
 
@@ -23,7 +28,11 @@ Release
 ----------
 
 #. Set ``__version__`` in ``puresec_cli/__init__.py``
-#. Set ``analytics.write_key`` in ``puresec_cli/stats.py``
+#. Commit, and run ``git tag vX.X.X`` replacing ``X.X.X`` with the new version
+#. Set ``analytics.write_key`` in ``puresec_cli/stats.py`` **DON'T COMMIT IT**
+#. Run ``./setup.py sdist upload``
+#. Update version of https://github.com/puresec/serverless-puresec-cli
+#. Update backend latest version
 
 Anonymous statistics
 --------------------
