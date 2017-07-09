@@ -6,11 +6,15 @@ from collections import defaultdict
 from uuid import uuid4
 import analytics
 import os
-import puresec_cli
 import sys
 import traceback
+import re
+
+import puresec_cli
 
 analytics.write_key = ''
+
+ANONYMIZED_VALUE = "<ANONYMIZED>"
 
 class Stats:
     """ Singleton object in charge of sending anonymous statistics.
@@ -218,6 +222,8 @@ class Stats:
         Stats.ACTIONS[value](self)
 
     KNOWN_RUNTIMES = {'python', 'java', 'nodejs', 'javascript', 'ruby', 'c#', 'f#', 'php', 'bash', 'batch', 'powershell', 'go'}
+    EXCEPTION_FILE_PATTERN = re.compile(r'  File "/.*?/([^\/]*)", line')
+    EXCEPTION_FILE_REPLACEMENT = r'File "/{}/\1", line'.format(ANONYMIZED_VALUE)
 
     def result(self, message):
         """
@@ -240,10 +246,12 @@ class Stats:
         >>> mock.calls_for('Stats._send')
         'Successful run', {'some': 'payload'}
 
+        >>> from puresec_cli.utils import eprint
         >>> try:
         ...     raise FileNotFoundError("some/file")
         ... except:
         ...     stats.result("Unexpected error")
+        >>> # NOTE: this will fail if utils.py changes, don't worry just update the line number
         >>> mock.calls_for('Stats._send')
         'Unexpected error',
         {'exception': 'Traceback (most recent call last):\\n'
@@ -257,7 +265,7 @@ class Stats:
 
         self.generate_anonymous_user_id()
         if sys.exc_info()[0]:
-            self.payload['exception'] = traceback.format_exc()
+            self.payload['exception'] = Stats.EXCEPTION_FILE_PATTERN.sub(Stats.EXCEPTION_FILE_REPLACEMENT, traceback.format_exc())
         self._send(message, self.payload)
 
     def _send(self, message, payload):

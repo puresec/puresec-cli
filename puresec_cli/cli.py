@@ -39,7 +39,10 @@ def check_version():
         eprint("warn: you are using an outdated version of PureSec CLI (installed={}, latest={})".format(puresec_cli.__version__, last_version))
 
 def main(argv=None):
-    check_version()
+    try:
+        check_version()
+    except KeyboardInterrupt:
+        raise SystemExit(1)
 
     parser = ArgumentParser(
         description="PureSec CLI tools for improving the security of your serverless applications."
@@ -72,6 +75,8 @@ def main(argv=None):
         try:
             action = args.action(args)
             action.run()
+        except KeyboardInterrupt:
+            raise SystemExit(1)
         except SystemExit:
             stats.result('Expected error')
             raise

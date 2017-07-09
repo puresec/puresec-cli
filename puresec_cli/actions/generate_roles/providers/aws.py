@@ -114,6 +114,7 @@ class AwsProvider(Base, AwsApi):
 
         >>> from puresec_cli.actions.generate_roles.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
+        ...     def _init_executable(self): pass
         ...     def get_default_profile(self):
         ...         return "default_profile"
 
@@ -123,12 +124,13 @@ class AwsProvider(Base, AwsApi):
         >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json").session
         Session(region_name=None)
 
-        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}, 'ls')).session
+        >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}, executable=None)).session
         Traceback (most recent call last):
         SystemExit: -1
         >>> mock.calls_for('eprint')
         'error: failed to create aws session:\\n{}', ProfileNotFound('The config profile (default_profile) could not be found',)
         """
+
         if self.framework:
             profile = self.framework.get_default_profile()
         else:
@@ -160,7 +162,6 @@ class AwsProvider(Base, AwsApi):
         >>> AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework(True)).default_region
         'framework-region'
 
-        >>> import boto3
         >>> def _init_session(self):
         ...     self.session = boto3.Session(region_name='session-region')
         >>> mock.mock(AwsProvider, '_init_session', _init_session)
@@ -263,6 +264,7 @@ class AwsProvider(Base, AwsApi):
         ...     f.write('{}') and None
         >>> from puresec_cli.actions.generate_roles.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
+        ...     def _init_executable(self): pass
         ...     def get_function_name(self, name):
         ...         return name[1:]
 
@@ -273,7 +275,7 @@ class AwsProvider(Base, AwsApi):
         ...             pass
         >>> mock.mock(None, 'import_module', lambda name: RuntimeModule)
 
-        >>> handler = AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}, 'ls'))
+        >>> handler = AwsProvider("path/to/project", config={}, resource_template="path/to/cloudformation.json", framework=Framework("", {}, executable=None))
         >>> handler.default_region = "default_region"
         >>> handler.default_account = "default_account"
         >>> mock.mock(handler, '_get_function_root', lambda name: "functions/{}".format(name))
