@@ -1,4 +1,5 @@
 from puresec_cli.utils import eprint
+from puresec_cli import stats
 import abc
 
 class Base:
@@ -10,6 +11,7 @@ class Base:
         ...     pass
         >>> from puresec_cli.actions.generate_roles.frameworks.base import Base as FrameworkBase
         >>> class Framework(FrameworkBase):
+        ...     def _init_executable(self): pass
         ...     def get_resource_template(self):
         ...         return "path/to/resource_template"
 
@@ -19,9 +21,11 @@ class Base:
         'path/to/resource_template'
         >>> Provider("path/to/project", config={}, framework=Framework("", {}, 'ls')).resource_template
         'path/to/resource_template'
-        >>> Provider("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", {}, 'ls')).resource_template
+        >>> Provider("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", {}, executable=None)).resource_template
         'path/to/custom_resource_template'
         """
+
+        stats.payload['environment']['provider'] = type(self).__name__
 
         self.path = path
         self.config = config

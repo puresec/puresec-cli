@@ -12,9 +12,8 @@ from urllib import request
 import urllib.error
 import json
 
-from puresec_cli import actions
+from puresec_cli import actions, stats
 from puresec_cli.utils import eprint
-from puresec_cli.stats import Stats
 import puresec_cli
 
 def check_version():
@@ -40,7 +39,10 @@ def check_version():
         eprint("warn: you are using an outdated version of PureSec CLI (installed={}, latest={})".format(puresec_cli.__version__, last_version))
 
 def main(argv=None):
-    check_version()
+    try:
+        check_version()
+    except KeyboardInterrupt:
+        raise SystemExit(1)
 
     parser = ArgumentParser(
         description="PureSec CLI tools for improving the security of your serverless applications."
@@ -61,9 +63,6 @@ def main(argv=None):
 
     args = parser.parse_args()
 
-    stats = Stats()
-    stats.args = args
-
     ran = False
 
     if args.stats:
@@ -72,17 +71,20 @@ def main(argv=None):
 
     if hasattr(args, 'action'):
         ran = True
+        stats.payload['arguments']['command'] = action.command()
         try:
-            action = args.action(args, stats)
+            action = args.action(args)
             action.run()
+        except KeyboardInterrupt:
+            raise SystemExit(1)
         except SystemExit:
-            stats.result(action, 'Expected error')
+            stats.result('Expected error')
             raise
         except Exception:
-            stats.result(action, 'Unexpected error')
+            stats.result('Unexpected error')
             raise
         else:
-            stats.result(action, 'Successful run')
+            stats.result('Successful run')
 
     if not ran:
         parser.print_usage()

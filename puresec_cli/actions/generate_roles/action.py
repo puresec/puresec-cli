@@ -1,11 +1,13 @@
 from contextlib import contextmanager
 from importlib import import_module
+import os
+import yaml
+
 from puresec_cli.actions.base import Base
 from puresec_cli.actions.generate_roles import providers, frameworks
 from puresec_cli.actions.generate_roles.runtimes import aws
 from puresec_cli.utils import eprint
-import os
-import yaml
+from puresec_cli import stats
 
 class GenerateRoles(Base):
     @staticmethod
@@ -64,8 +66,26 @@ class GenerateRoles(Base):
                             help="Yes for all - overwrite files, remove old roles, etc.")
 
 
-    def __init__(self, args, stats):
-        super().__init__(args, stats)
+    def __init__(self, args):
+        super().__init__(args)
+
+        stats.payload['arguments'].update(
+            path=len(self.args.path),
+            provider=self.args.provider,
+            resource_template=bool(self.args.resource_template),
+            runtime=self.args.runtime,
+            framework=self.args.framework,
+            framework_path=bool(self.args.framework_path),
+            function=bool(self.args.function),
+
+            overwrite=self.args.overwrite,
+            no_overwrite=self.args.no_overwrite,
+            reference=self.args.reference,
+            no_reference=self.args.no_reference,
+            remove_obsolete=self.args.remove_obsolete,
+            no_remove_obsolete=self.args.no_remove_obsolete,
+            yes=self.args.yes,
+        )
 
     @contextmanager
     def generate_config(self, path):
@@ -139,11 +159,7 @@ class GenerateRoles(Base):
             with self.generate_config(path) as config:
 
                 with self.generate_framework(path, config) as framework:
-                    self.stats.frameworks.append(framework)
-
                     with self.generate_provider(path, framework, config) as provider:
-                        self.stats.providers.append(provider)
-
                         provider.process()
                         if framework:
                             framework.result(provider)

@@ -1,13 +1,20 @@
+"""
+Use puresec_cli.stats, not puresec_cli.stats.Stats.
+"""
+
 from collections import defaultdict
-from puresec_cli.utils import eprinted
 from uuid import uuid4
 import analytics
 import os
-import puresec_cli
 import sys
 import traceback
+import re
+
+import puresec_cli
 
 analytics.write_key = ''
+
+ANONYMIZED_VALUE = "<ANONYMIZED>"
 
 class Stats:
     """ Singleton object in charge of sending anonymous statistics.
@@ -39,11 +46,12 @@ class Stats:
         return Stats.instance
 
     def __init__(self):
-        self.args = None
-        self.providers = []
-        self.frameworks = []
         self.disabled = os.path.exists(Stats.DISABLED_PATH)
         self.anonymous_user_id = None
+
+        def defaultdict_defaultdict():
+            return defaultdict(defaultdict_defaultdict)
+        self.payload = defaultdict_defaultdict()
 
     def generate_anonymous_user_id(self):
         """
@@ -214,8 +222,10 @@ class Stats:
         Stats.ACTIONS[value](self)
 
     KNOWN_RUNTIMES = {'python', 'java', 'nodejs', 'javascript', 'ruby', 'c#', 'f#', 'php', 'bash', 'batch', 'powershell', 'go'}
+    EXCEPTION_FILE_PATTERN = re.compile(r'  File "/.*?/([^\/]*)", line')
+    EXCEPTION_FILE_REPLACEMENT = r'File "/{}/\1", line'.format(ANONYMIZED_VALUE)
 
-    def result(self, action, message):
+    def result(self, message):
         """
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
@@ -224,136 +234,39 @@ class Stats:
         >>> stats = Stats()
         >>> mock.mock(stats, '_send')
 
-        >>> class Action:
-        ...     def command(self):
-        ...         return "some-command"
-        >>> action = Action()
-
         >>> stats.disabled = True
-        >>> stats.result(action, "Some result")
+        >>> stats.result("Some result")
         >>> mock.calls_for('Stats._send')
 
         >>> stats.disabled = False
         >>> stats.anonymous_user_id = 'uuid'
+        >>> stats.payload = {'some': 'payload'}
 
-        >>> class Args: pass
-        >>> stats.args = Args()
-        >>> stats.args.__dict__ = {
-        ...     'path': ['one/path', 'two/path'],
-        ...     'provider': 'aws',
-        ...     'resource_template': "path/to/cloudformation.json",
-        ...     'runtime': 'nodejs',
-        ...     'framework': 'serverless',
-        ...     'framework_path': "path/to/sls",
-        ...     'function': 'someFunction',
-        ...     'overwrite': False,
-        ...     'no_overwrite': False,
-        ...     'reference': False,
-        ...     'no_reference': False,
-        ...     'remove_obsolete': False,
-        ...     'no_remove_obsolete': False,
-        ...     'yes': True,
-        ... }
-        >>> class SomeProvider:
-        ...     def __init__(self, runtimes):
-        ...         self.runtimes = runtimes
-        >>> stats.providers.append(SomeProvider(runtimes={'nodejs': 2, 'python': 3, 'unknown': 10}))
-        >>> stats.providers.append(SomeProvider(runtimes={'python': 1, 'java': 6}))
-        >>> class SomeFramework: pass
-        >>> stats.frameworks.append(SomeFramework())
-        >>> stats.frameworks.append(SomeFramework())
-        >>> mock.mock(None, 'eprinted', ['warning1', 'warning2'])
-
-        >>> stats.result(action, "Successful run")
+        >>> stats.result("Successful run")
         >>> mock.calls_for('Stats._send')
-        'Successful run', {'arguments': {'command': 'some-command',
-                       'framework': 'serverless',
-                       'framework_path': True,
-                       'function': True,
-                       'no_overwrite': False,
-                       'no_reference': False,
-                       'no_remove_obsolete': False,
-                       'overwrite': False,
-                       'path': 2,
-                       'provider': 'aws',
-                       'reference': False,
-                       'remove_obsolete': False,
-                       'resource_template': True,
-                       'runtime': 'nodejs',
-                       'yes': True},
-         'environment': {'framework': 'SomeFramework',
-                         'provider': 'SomeProvider',
-                         'runtimes': {'java': 6, 'nodejs': 2, 'python': 4}},
-         'eprinted': ['warning1', 'warning2'],
-         'exception': None}
+        'Successful run', {'some': 'payload'}
 
+        >>> from puresec_cli.utils import eprint
         >>> try:
         ...     raise FileNotFoundError("some/file")
         ... except:
-        ...     stats.result(action, "Unexpected error")
+        ...     stats.result("Unexpected error")
+        >>> # NOTE: this will fail if utils.py changes, don't worry just update the line number
         >>> mock.calls_for('Stats._send')
-        'Unexpected error', {'arguments': {'command': 'some-command',
-                       'framework': 'serverless',
-                       'framework_path': True,
-                       'function': True,
-                       'no_overwrite': False,
-                       'no_reference': False,
-                       'no_remove_obsolete': False,
-                       'overwrite': False,
-                       'path': 2,
-                       'provider': 'aws',
-                       'reference': False,
-                       'remove_obsolete': False,
-                       'resource_template': True,
-                       'runtime': 'nodejs',
-                       'yes': True},
-         'environment': {'framework': 'SomeFramework',
-                         'provider': 'SomeProvider',
-                         'runtimes': {'java': 6, 'nodejs': 2, 'python': 4}},
-         'eprinted': ['warning1', 'warning2'],
-         'exception': 'Traceback (most recent call last):\\n'
+        'Unexpected error',
+        {'exception': 'Traceback (most recent call last):\\n'
             ...
-                      'FileNotFoundError: some/file\\n'}
+                      'FileNotFoundError: some/file\\n',
+         'some': 'payload'}
         """
 
         if self.disabled:
             return
 
         self.generate_anonymous_user_id()
-
-        runtimes = defaultdict(int)
-        for provider in self.providers:
-            for runtime, count in provider.runtimes.items():
-                if runtime in Stats.KNOWN_RUNTIMES:
-                    runtimes[runtime] += count
-
-        self._send(message, {
-            'arguments': {
-                'command': action.command(),
-                # TODO: action-specific
-                'path': len(self.args.path),
-                'provider': self.args.provider,
-                'resource_template': bool(self.args.resource_template),
-                'runtime': self.args.runtime,
-                'framework': self.args.framework,
-                'framework_path': bool(self.args.framework_path),
-                'function': bool(self.args.function),
-                'overwrite': self.args.overwrite,
-                'no_overwrite': self.args.no_overwrite,
-                'reference': self.args.reference,
-                'no_reference': self.args.no_reference,
-                'remove_obsolete': self.args.remove_obsolete,
-                'no_remove_obsolete': self.args.no_remove_obsolete,
-                'yes': self.args.yes,
-            },
-            'environment': {
-                'provider': type(self.providers[0]).__name__ if self.providers else None,
-                'runtimes': dict(runtimes),
-                'framework': type(self.frameworks[0]).__name__ if self.frameworks else None,
-            },
-            'exception': traceback.format_exc() if sys.exc_info()[0] else None,
-            'eprinted': eprinted,
-        })
+        if sys.exc_info()[0]:
+            self.payload['exception'] = Stats.EXCEPTION_FILE_PATTERN.sub(Stats.EXCEPTION_FILE_REPLACEMENT, traceback.format_exc())
+        self._send(message, self.payload)
 
     def _send(self, message, payload):
         payload['execution'] = {
@@ -361,4 +274,6 @@ class Stats:
             'python_version': sys.version,
         }
         analytics.track(self.anonymous_user_id, message, payload)
+
+stats = Stats()
 

@@ -1,13 +1,20 @@
 from collections import defaultdict
 from io import BytesIO, BufferedRandom, TextIOWrapper
 from pprint import pformat
-from tests.utils import normalize_dict, PrettySet
 import os
 import sys
 import weakref
 
+from tests.utils import normalize_dict, PrettySet
+
 class Mock:
+    active = False
+
     def __init__(self, module_name):
+        if Mock.active:
+            print("Previous mock object still alive")
+        Mock.active = True
+
         self.module = sys.modules[module_name]
 
         self.mocks = {}
@@ -18,17 +25,21 @@ class Mock:
         # default mocks
         self.stderr = sys.stderr
         sys.stderr = sys.stdout
-        self.module.open = self.open
+
+        self = weakref.proxy(self)
+        self.mock(self.module, 'open', lambda *args, **kwargs: self.open(*args, **kwargs))
         if hasattr(self.module, 'os'):
-            self.module.os.path.exists = self.exists
-            self.module.os.walk = self.walk
+            self.mock(self.module.os.path, 'exists', lambda *args, **kwargs: self.exists(*args, **kwargs))
+            self.mock(self.module.os, 'walk', lambda *args, **kwargs: self.walk(*args, **kwargs))
 
     def __del__(self):
+        self.closed = True
         sys.stderr = self.stderr
-        for stream in self.opened.values():
-            stream.close()
+        self.clear_filesystem()
         for module, name in tuple(self.mocks):
             self.unmock(module, name)
+
+        Mock.active = False
 
     def mock(self, module, name, return_value=None):
         current_value = getattr(module or self.module, name, None)

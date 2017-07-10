@@ -2,9 +2,37 @@ from termcolor import colored
 import re
 import sys
 
-eprinted = []
+from puresec_cli import stats
+from puresec_cli.stats import ANONYMIZED_VALUE
 
-ANONYMIZED_VALUE = "<ANONYMIZED>"
+def _anonymize_message(message, *format_args, **format_kwargs):
+    """
+    >>> _anonymize_message("hello")
+    'hello'
+
+    >>> _anonymize_message("hello: {}", "John")
+    'hello: <ANONYMIZED>'
+
+    >>> _anonymize_message("hello: {name}", name="John")
+    'hello: <ANONYMIZED>'
+
+    >>> _anonymize_message("exception: {}", SystemExit(1))
+    'exception: 1'
+
+    >>> _anonymize_message("exception: {exc}", exc=SystemExit(1))
+    'exception: 1'
+
+    >>> _anonymize_message("empty:{}", "")
+    'empty:'
+
+    >>> _anonymize_message("empty:{value}", value="")
+    'empty:'
+    """
+
+    return message.format(
+        *(value if (value == '' or isinstance(value, BaseException)) else ANONYMIZED_VALUE for value in format_args),
+        **dict((key, value if (value == '' or isinstance(value, BaseException)) else ANONYMIZED_VALUE) for key, value in format_kwargs.items())
+    )
 
 EPRINT_FORMATTING = tuple(
     (re.compile(pattern), outcome)
@@ -16,56 +44,37 @@ EPRINT_FORMATTING = tuple(
 )
 
 def eprint(message, *format_args, **format_kwargs):
-    """
-    >>> from tests.mock import Mock
-    >>> mock = Mock(__name__)
-
-    >>> eprint("hello")
-    hello
-    >>> eprinted
-    ['hello']
-
-    >>> eprinted.clear()
-
-    >>> eprint("hello: {}", "John")
-    hello: John
-    >>> eprinted
-    ['hello: <ANONYMIZED>']
-
-    >>> eprinted.clear()
-
-    >>> eprint("hello: {name}", name="John")
-    hello: John
-    >>> eprinted
-    ['hello: <ANONYMIZED>']
-
-    >>> eprinted.clear()
-
-    >>> eprint("exception: {}", SystemExit(1))
-    exception: 1
-    >>> eprinted
-    ['exception: 1']
-
-    >>> eprinted.clear()
-
-    >>> eprint("exception: {exc}", exc=SystemExit(1))
-    exception: 1
-    >>> eprinted
-    ['exception: 1']
-    """
-
-    eprinted.append(
-        message.format(
-            *(value if isinstance(value, BaseException) else ANONYMIZED_VALUE for value in format_args),
-            **dict((key, value if isinstance(value, BaseException) else ANONYMIZED_VALUE) for key, value in format_kwargs.items())
-        )
-    )
+    stats.payload.setdefault('eprints', []).append(_anonymize_message(message, *format_args, **format_kwargs))
 
     message = message.format(*format_args, **format_kwargs)
     for pattern, outcome in EPRINT_FORMATTING:
         message = pattern.sub(outcome, message)
 
     print(message, file=sys.stderr)
+
+INPUT_QUERY_OPTIONS = {"yes": True, "y": True, "ye": True,
+                       "no": False, "n": False}
+INPUT_QUERY_DEFAULTS = {None: " [y/n] ",
+                        True: " [Y/n] ",
+                        False: " [y/N] "}
+
+def input_query(question, *format_args, default=None, **format_kwargs):
+    anonymized_message = _anonymize_message(question, *format_args, **format_kwargs)
+
+    question = question.format(*format_args, **format_kwargs) + INPUT_QUERY_DEFAULTS[default]
+    result = None
+    while result is None:
+        sys.stderr.write(question)
+        choice = input().lower()
+        if default is not None and choice == '':
+            result = INPUT_QUERY_OPTIONS[default]
+        elif choice in INPUT_QUERY_OPTIONS:
+            result = INPUT_QUERY_OPTIONS[choice]
+        else:
+            sys.stderr.write("Please respond with 'yes' or 'no' (or 'y' or 'n').\n")
+
+    stats.payload.setdefault('input_queries', []).append((anonymized_message, result))
+    return result
 
 def deepmerge(a, b):
     """
@@ -168,25 +177,6 @@ def get_inner_parentheses(value):
             elif opens < 0:
                 return None
     return None
-
-INPUT_QUERY_OPTIONS = {"yes": True, "y": True, "ye": True,
-                       "no": False, "n": False}
-INPUT_QUERY_DEFAULTS = {None: " [y/n] ",
-                        True: " [Y/n] ",
-                        False: " [y/N] "}
-
-def input_query(question, default=None):
-    question += INPUT_QUERY_DEFAULTS[default]
-
-    while True:
-        sys.stderr.write(question)
-        choice = input().lower()
-        if default is not None and choice == '':
-            return INPUT_QUERY_OPTIONS[default]
-        elif choice in INPUT_QUERY_OPTIONS:
-            return INPUT_QUERY_OPTIONS[choice]
-        else:
-            sys.stderr.write("Please respond with 'yes' or 'no' (or 'y' or 'n').\n")
 
 def capitalize(string):
     return "{}{}".format(string[0].upper(), string[1:])

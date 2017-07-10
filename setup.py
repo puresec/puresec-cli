@@ -16,7 +16,7 @@ def find_version():
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
 
-class NPMInstall(distutils.cmd.Command):
+class InstallNonPythonDeps(distutils.cmd.Command):
     def initialize_options(self):
         pass
 
@@ -25,16 +25,16 @@ class NPMInstall(distutils.cmd.Command):
 
     def run(self):
         self.announce("Running command: npm install", level=distutils.log.INFO)
-        subprocess.check_call(['npm', 'install', '.', '--prefix', 'puresec_cli'])
+        subprocess.check_call(['npm', 'install', 'dependency-tree@^5.9.1', '--prefix', 'puresec_cli'])
 
 class BdistEggCommand(setuptools.command.bdist_egg.bdist_egg):
     def run(self):
-        self.run_command('npm_install')
+        self.run_command('install_non_python_deps')
         super().run()
 
 class SdistCommand(setuptools.command.sdist.sdist):
     def run(self):
-        self.run_command('npm_install')
+        self.run_command('install_non_python_deps')
         super().run()
 
 setup(
@@ -45,7 +45,7 @@ setup(
     author='PureSec <support@puresec.io>',
     url='https://github.com/puresec/puresec-cli',
     cmdclass={
-        'npm_install': NPMInstall,
+        'install_non_python_deps': InstallNonPythonDeps,
         'bdist_egg': BdistEggCommand,
         'sdist': SdistCommand,
     },

@@ -1,12 +1,16 @@
-from puresec_cli.utils import eprint
 from shutil import which
 import abc
 import os
+
+from puresec_cli.utils import eprint
+from puresec_cli import stats
 
 class Base:
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, path, config, executable, function=None, args=None):
+        stats.payload['environment']['framework'] = type(self).__name__
+
         self.path = path
         self.config = config
         self.executable = executable
