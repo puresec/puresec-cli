@@ -1,1 +1,1 @@
-recursive-include puresec_cli/node_modules *
+recursive-include puresec_cli/resources *

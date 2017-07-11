@@ -1,4 +1,3 @@
-import inspect
 import pkg_resources
 import os
 import re
@@ -66,16 +65,15 @@ class NodejsRuntime(Base, NodejsApi):
             return
 
         # acquiring dependencies using NPM's dependency-tree
-        dependency_tree_cli_path = os.path.abspath(os.path.join(pkg_resources.resource_filename('puresec_cli', 'node_modules'), 'dependency-tree/bin/cli.js'))
-
+        dependency_tree_cli_path = os.path.abspath(os.path.join(pkg_resources.resource_filename('puresec_cli', 'resources/node_modules'), 'dependency-tree/bin/cli.js'))
         try:
             dependencies = subprocess.check_output(['node', dependency_tree_cli_path, filename, '--directory', self.root, '--list-form'], stderr=subprocess.STDOUT)
         except FileNotFoundError:
-            eprint("error: NodeJS not installed")
+            eprint("error: function runtime (nodejs) must be installed")
             raise SystemExit(-1)
         except subprocess.CalledProcessError as e:
             eprint("error: failed to get dependency tree:\n{}", e.output.decode())
-            raise SystemExit(e.returncode)
+            raise SystemExit(-1)
 
         dependencies = [
             dependency for dependency in dependencies.decode().split('\n')
@@ -85,7 +83,6 @@ class NodejsRuntime(Base, NodejsApi):
         self._dependencies = dependencies[:] # cache
 
         # getting all non-dependency files
-        dependency_set = set(dependencies)
         resources = [] # (abspath, filename)
         for path, dirs, filenames in os.walk(self.root):
             if path.endswith('node_modules'):
@@ -109,14 +106,14 @@ class NodejsRuntime(Base, NodejsApi):
             filename = dependencies.pop(0)
             with open(filename, 'r', errors='replace') as file:
                 # adding resources referenced by current file
-                current_resources_indexes = []
+                used_resources_indexes = []
                 contents = file.read()
                 for index, (resource_abspath, resource_filename) in enumerate(resources):
                     if resource_filename in contents:
                         dependencies.append(resource_abspath)
                         self._dependencies.append(resource_abspath)
-                        current_resources_indexes.append(index)
-                for index in reversed(current_resources_indexes):
+                        used_resources_indexes.append(index)
+                for index in reversed(used_resources_indexes):
                     resources.pop(index)
                 # processing current file
                 processor(filename, contents, *args, **kwargs)

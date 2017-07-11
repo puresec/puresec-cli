@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+"""
+Exit code meanings:
+    0  - Success
+    1  - Cancelled by user
+    2  - Bad arguments
+    -1 - Failure (255)
+"""
+
 import sys
 
 if sys.version_info.major != 3:
@@ -11,6 +19,7 @@ from importlib import import_module
 from urllib import request
 import urllib.error
 import json
+import traceback
 
 from puresec_cli import actions, stats
 from puresec_cli.utils import eprint
@@ -82,7 +91,8 @@ def main(argv=None):
             raise
         except Exception:
             stats.result('Unexpected error')
-            raise
+            traceback.print_exc()
+            raise SystemExit(-1)
         else:
             stats.result('Successful run')
 

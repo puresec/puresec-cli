@@ -35,7 +35,7 @@ class InstallNonPythonDepsCommand(distutils.cmd.Command):
         self.announce("Running command: rm -rf puresec_cli/node_modules", level=distutils.log.INFO)
         subprocess.check_call(['rm', '-rf', 'puresec_cli/node_modules'])
         self.announce("Running command: npm install", level=distutils.log.INFO)
-        subprocess.check_call(['npm', 'install', 'dependency-tree@^5.9.1', '--prefix', 'puresec_cli'])
+        subprocess.check_call(['npm', 'install', 'dependency-tree@^5.9.1', '--prefix', 'puresec_cli/resources'])
 
 class BdistEggCommand(setuptools.command.bdist_egg.bdist_egg):
     def run(self):

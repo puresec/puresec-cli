@@ -1,4 +1,7 @@
+import pkg_resources
+import os
 import re
+import subprocess
 
 from puresec_cli.utils import eprint, get_inner_parentheses
 from puresec_cli.actions.generate_roles.runtimes.aws.base import Base
@@ -6,6 +9,105 @@ from puresec_cli.actions.generate_roles.runtimes.aws.python_api import PythonApi
 
 class PythonRuntime(Base, PythonApi):
     PYTHON_FILENAME_PATTERN = re.compile(r"\.py$", re.IGNORECASE)
+
+    def _walk(self, processor, *args, **kwargs):
+        """
+        >>> from collections import namedtuple
+        >>> from tests.mock import Mock
+        >>> mock = Mock(__name__)
+
+        >>> mock.mock(pkg_resources, 'resource_filename', "/path/to/list-dependencies.py")
+
+        >>> processed = []
+        >>> def processor(filename, contents, custom_positional, custom_keyword):
+        ...     processed.append((filename, contents, custom_positional, custom_keyword))
+
+        >>> def stat(self, filename):
+        ...     return namedtuple('Stat', ('st_size',))(5*1024*1024 if filename == "/path/to/function/large-file" else 512)
+        >>> mock.mock(PythonRuntime, '_stat', stat)
+
+        >>> mock.filesystem = {'': {'path': {'to': {'function': {
+        ...     'large-file': True,
+        ...     'config': True,
+        ...     'unreferenced': True,
+        ... }}}}}
+        >>> with mock.open("/path/to/function/config", 'w') as f:
+        ...     f.write("some config") and None
+        >>> with mock.open("/path/to/function/src/index.py", 'w') as f:
+        ...     f.write("some code config large-file more code") and None
+
+        >>> mock.mock(subprocess, 'check_output', b"/path/to/function/src/index.py\\n")
+        >>> PythonRuntime('/path/to/function', resource_properties={'Handler': "src/index.handler", 'Runtime': 'python2.7'}, provider=object()) \\
+        ...     ._walk(processor, 'positional', custom_keyword='keyword')
+        >>> mock.calls_for('subprocess.check_output')
+        ['python2.7', '/path/to/list-dependencies.py', '/path/to/function/src/index.py', '/path/to/function'], stderr=-2
+        >>> processed
+        [('/path/to/function/src/index.py', 'some code config large-file more code', 'positional', 'keyword'),
+         ('/path/to/function/config', 'some config', 'positional', 'keyword')]
+        """
+
+        if hasattr(self, '_dependencies'):
+            # cached
+            for filename in self._dependencies:
+                with open(filename, 'r', errors='replace') as file:
+                    processor(filename, file.read(), *args, **kwargs)
+            return
+
+        # getting main Python file (from Handler)
+        handler = self.resource_properties.get('Handler')
+        if not handler:
+            # dummy CloudFormation? walking everything
+            super()._walk(processor, *args, **kwargs)
+            return
+        module = '.'.join(handler.split('.')[0:-1]) # all except the last part which is the method
+        filename = os.path.abspath(os.path.join(self.root, "{}.py".format(module.replace('.', '/'))))
+        if not os.path.exists(filename):
+            return
+
+        # acquiring dependencies with the correct Python version using resources/list-dependencies.py script
+        list_dependencies_script_path = pkg_resources.resource_filename('puresec_cli', 'resources/list-dependencies.py')
+        python_executable = self.resource_properties['Runtime'] # e.g 'python2.7'
+        try:
+            dependencies = subprocess.check_output([python_executable, list_dependencies_script_path, filename, self.root], stderr=subprocess.STDOUT)
+        except FileNotFoundError:
+            eprint("error: function runtime ({}) must be installed", python_executable)
+            raise SystemExit(-1)
+        except subprocess.CalledProcessError as e:
+            eprint("error: failed to get dependency tree:\n{}", e.output.decode())
+            raise SystemExit(-1)
+
+        dependencies = dependencies.decode().split('\n')
+        dependencies.pop() # last empty line
+        self._dependencies = dependencies[:] # cache
+
+        # getting all non-dependency files
+        resources = [] # (abspath, filename)
+        for path, dirs, filenames in os.walk(self.root):
+            paths_generator = (
+                (os.path.abspath(os.path.join(path, filename)), filename)
+                for filename in filenames
+                if not PythonRuntime.PYTHON_FILENAME_PATTERN.search(filename)
+            )
+            resources.extend(
+                paths_tuple for paths_tuple in paths_generator
+                if self._stat(paths_tuple[0]).st_size < PythonRuntime.MAX_FILE_SIZE
+            )
+
+        while dependencies:
+            filename = dependencies.pop(0)
+            with open(filename, 'r', errors='replace') as file:
+                # adding resources referenced by current file
+                used_resources_indexes = []
+                contents = file.read()
+                for index, (resource_abspath, resource_filename) in enumerate(resources):
+                    if resource_filename in contents:
+                        dependencies.append(resource_abspath)
+                        self._dependencies.append(resource_abspath)
+                        used_resources_indexes.append(index)
+                for index in reversed(used_resources_indexes):
+                    resources.pop(index)
+                # processing current file
+                processor(filename, contents, *args, **kwargs)
 
     # Processors
 

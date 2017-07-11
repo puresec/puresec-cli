@@ -359,7 +359,7 @@ class ServerlessFramework(Base):
         """
 
         if old_roles:
-            old_roles_format = "\n".join("\t- {}".format(role) for role in old_roles)
+            old_roles_format = "\n".join("  - {}".format(role) for role in old_roles)
             if (self.args.yes or self.args.remove_obsolete) or (not self.args.no_remove_obsolete and input_query("These roles are now obsolete:\n{}\nWould you like to remove them?", old_roles_format)):
                 # default role
                 if not self.function and 'iamRoleStatements' in config.get('provider', ()):
@@ -411,7 +411,7 @@ class ServerlessFramework(Base):
                 raise SystemExit(-1)
             except subprocess.CalledProcessError as e:
                 eprint("error: serverless package failed:\n{}", e.output.decode())
-                raise SystemExit(e.returncode)
+                raise SystemExit(-1)
 
     @property
     def _serverless_config(self):
