@@ -2,6 +2,7 @@
 
 from puresec_cli.utils import eprint
 import boto3
+import botocore
 import re
 
 class AwsApi:
@@ -210,7 +211,7 @@ class AwsApi:
         if result is None:
             try:
                 result = AwsApi.RESOURCE_CACHE[cache_key] = getattr(client, api_method)(**api_kwargs)
-            except botocore.exceptions.BotoCoreError as e:
+            except (botocore.exceptions.BotoCoreError, botocore.exceptions.ClientError) as e:
                 eprint("error: failed to list resources on {}:\n{}", service, e)
                 raise SystemExit(-1)
 

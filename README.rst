@@ -18,14 +18,14 @@ Install dependencies, run the tests, and run the CLI (without ``pip`` installing
 
 .. code:: bash
 
-    pip install -r requirements.txt
-    nosetests -c nose.cfg
-    python -m puresec_cli --help
+    ./setup.py install
+    ./setup.py test
+    python3 -m puresec_cli --help
 
 Then fork and pull request!
 
 Release
-----------
+-------
 
 #. Set ``__version__`` in ``puresec_cli/__init__.py``
 #. Commit, and run ``git tag vX.X.X`` replacing ``X.X.X`` with the new version

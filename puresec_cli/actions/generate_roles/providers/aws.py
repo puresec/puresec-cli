@@ -138,7 +138,7 @@ class AwsProvider(Base, AwsApi):
 
         try:
             self.session = boto3.Session(profile_name=profile)
-        except botocore.exceptions.BotoCoreError as e:
+        except (botocore.exceptions.BotoCoreError, botocore.exceptions.ClientError) as e:
             eprint("error: failed to create aws session:\n{}", e)
             raise SystemExit(-1)
 
@@ -194,7 +194,7 @@ class AwsProvider(Base, AwsApi):
     def _init_default_account(self):
         try:
             self.default_account = self.session.client('sts').get_caller_identity()['Account']
-        except botocore.exceptions.BotoCoreError as e:
+        except (botocore.exceptions.BotoCoreError, botocore.exceptions.ClientError) as e:
             eprint("error: failed to get account from aws:\n{}", e)
             raise SystemExit(-1)
 

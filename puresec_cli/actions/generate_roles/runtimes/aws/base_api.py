@@ -4,8 +4,6 @@ from collections import defaultdict
 from functools import partial
 from puresec_cli.utils import eprint
 import abc
-import boto3
-import botocore
 import re
 
 class BaseApi:

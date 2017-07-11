@@ -69,7 +69,7 @@ class Base(RuntimeBase, BaseApi):
                 (region, re.compile(r"\b{}\b".format(re.escape(region))))
                 for region in boto3.Session().get_available_regions('ec2')
                 )
-    except botocore.exceptions.BotoCoreError as e:
+    except (botocore.exceptions.BotoCoreError, botocore.exceptions.ClientError) as e:
         eprint("error: failed to create aws session:\n{}", e)
         raise SystemExit(-1)
     # regions = set()
