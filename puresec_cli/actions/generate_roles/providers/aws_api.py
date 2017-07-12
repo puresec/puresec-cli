@@ -162,7 +162,7 @@ class AwsApi:
         if self.cloudformation_template:
             function_id_pattern = re.compile(AwsApi.FUNCTION_ID_PATTERN.format(function_name, resource_id), re.IGNORECASE)
             for other_resource_id, other_resource_config in self.cloudformation_template.get('Resources', {}).items():
-                if other_resource_config['Type'] == 'AWS::Lambda::EventSourceMapping':
+                if other_resource_config.get('Type') == 'AWS::Lambda::EventSourceMapping':
                     # either ARN, function name, or broken intrinsic function
                     target = other_resource_config.get('Properties', {}).get('FunctionName')
                     if target and function_id_pattern.search(target):

@@ -60,6 +60,13 @@ class AwsProvider(Base, AwsApi):
     def permissions(self):
         return dict((name, permissions) for name, permissions in self._function_permissions.items())
 
+    def role_name(self, name):
+        parts = ['puresec', name]
+        if self.framework:
+            role_prefix = self.framework.role_prefix(name)
+            parts.insert(0, role_prefix)
+        return '-'.join(parts)
+
     TEMPLATE_DUMPERS = {
         '.json': partial(json.dumps, indent=2),
         '.yml': partial(yaml.dump, default_flow_style=False),
@@ -74,7 +81,7 @@ class AwsProvider(Base, AwsApi):
                 'Type': 'AWS::IAM::Role',
                 'Properties': {
                     'Path': '/',
-                    'RoleName': "PureSec{}".format(capitalize(name)),
+                    'RoleName': self.role_name(name),
                     'AssumeRolePolicyDocument': {
                         'Version': '2012-10-17',
                         'Statement': [
@@ -402,7 +409,7 @@ class AwsProvider(Base, AwsApi):
             }
 
         for resource_id, resource_config in resources.items():
-            if resource_config['Type'] == 'AWS::Lambda::Function':
+            if resource_config.get('Type') == 'AWS::Lambda::Function':
                 # Getting name
                 name = resource_config.get('Properties', {}).get('FunctionName')
                 if not name:

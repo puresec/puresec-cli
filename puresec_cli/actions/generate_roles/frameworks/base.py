@@ -64,6 +64,9 @@ class Base:
     def __exit__(self, type, value, traceback):
         pass
 
+    def role_prefix(self, name):
+        pass
+
     @abc.abstractmethod
     def result(self, provider):
         pass

@@ -35,6 +35,9 @@ class ServerlessFramework(Base):
         if hasattr(self, '_serverless_package'):
             self._serverless_package.cleanup()
 
+    def role_prefix(self, name):
+        return self._serverless_config['service']['service']
+
     def result(self, provider):
         permissions = provider.permissions
         if not permissions:
@@ -215,7 +218,7 @@ class ServerlessFramework(Base):
         if not self.function:
             # roles assumed for lambda
             for resource_id, resource_config in old_resources.items():
-                if resource_config['Type'] == 'AWS::IAM::Role':
+                if resource_config.get('Type') == 'AWS::IAM::Role':
                     # meh
                     if 'lambda.amazonaws.com' in str(resource_config.get('Properties', {}).get('AssumeRolePolicyDocument')):
                         if resource_id not in new_roles and resource_id in new_resources:
@@ -370,7 +373,7 @@ class ServerlessFramework(Base):
                 if not self.function:
                     # roles assumed for lambda
                     for resource_id, resource_config in old_resources.items():
-                        if resource_config['Type'] == 'AWS::IAM::Role':
+                        if resource_config.get('Type') == 'AWS::IAM::Role':
                             # meh
                             if 'lambda.amazonaws.com' in str(resource_config.get('Properties', {}).get('AssumeRolePolicyDocument')):
                                 if resource_id not in new_roles and resource_id in new_resources:
