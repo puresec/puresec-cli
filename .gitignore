@@ -99,3 +99,6 @@ ENV/
 .mypy_cache/
 
 node_modules/
+# TODO: using this is actually better, but requires NPM 5
+#       using this will mean removing package names from setup.py
+package-lock.json

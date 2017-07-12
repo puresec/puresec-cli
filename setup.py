@@ -32,8 +32,8 @@ class InstallNonPythonDepsCommand(distutils.cmd.Command):
         pass
 
     def run(self):
-        self.announce("Running command: rm -rf puresec_cli/node_modules", level=distutils.log.INFO)
-        subprocess.check_call(['rm', '-rf', 'puresec_cli/node_modules'])
+        self.announce("Running command: rm -rf puresec_cli/resources/node_modules", level=distutils.log.INFO)
+        subprocess.check_call(['rm', '-rf', 'puresec_cli/resources/node_modules'])
         self.announce("Running command: npm install", level=distutils.log.INFO)
         subprocess.check_call(['npm', 'install', 'dependency-tree@^5.9.1', '--prefix', 'puresec_cli/resources'])
 
@@ -54,7 +54,8 @@ setup(
     version=find_version(),
     description="PureSec CLI tools for improving the security of your serverless applications.",
     long_description=open('README.rst').read(),
-    author='PureSec <support@puresec.io>',
+    author='PureSec',
+    author_email='support@puresec.io',
     url='https://github.com/puresec/puresec-cli',
     cmdclass={
         'install_non_python_deps': InstallNonPythonDepsCommand,
