@@ -78,6 +78,7 @@ setup(
         'boto3',
         'aws-parsecf',
     ],
-    setup_requires=['nose', 'coverage'],
+    setup_requires=['nose'],
+    tests_require=['coverage'],
 )
 

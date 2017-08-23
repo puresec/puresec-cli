@@ -233,6 +233,12 @@ class AwsApi:
         >>> provider.session = Session()
         >>> provider.default_account = 'default_account'
 
+        >>> class Args:
+        ...     pass
+        >>> args = Args()
+        >>> args.no_input = False
+        >>> provider.args = args
+
         >>> pprint(provider.get_client('dynamodb', 'us-east-1', 'default_account'))
         (('dynamodb',), {'region_name': 'us-east-1'})
 
@@ -270,6 +276,12 @@ class AwsApi:
                 region_name=region
             )
         elif account == self.default_account:
+            client = self.session.client(
+                service,
+                region_name=region
+            )
+        elif self.args.no_input:
+            eprint("warn: unknown account ('{}') and --no-input set, using default session", account)
             client = self.session.client(
                 service,
                 region_name=region

@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 """
 Exit code meanings:
     0  - Success
