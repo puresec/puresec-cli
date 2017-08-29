@@ -111,6 +111,16 @@ class Stats:
         'disabled-uuid'
         >>> mock.exists(Stats.ENABLED_PATH)
         False
+
+        >>> mock.clear_filesystem()
+        >>> def makedirs(*args, **kwargs):
+        ...     raise OSError("[Errno 30] Read-only file system")
+        >>> mock.mock(os, 'makedirs', makedirs)
+        >>> Stats.instance = None
+        >>> stats = Stats()
+        >>> stats.generate_anonymous_user_id()
+        >>> stats.disabled
+        True
         """
 
         if self.anonymous_user_id is not None:
@@ -119,7 +129,13 @@ class Stats:
         if not self.disabled:
             if not os.path.exists(Stats.ENABLED_PATH):
                 self.anonymous_user_id = str(uuid4()) # uuid1 compromises privacy
-                os.makedirs(Stats.CONFIG_DIRECTORY, exist_ok=True)
+                try:
+                    os.makedirs(Stats.CONFIG_DIRECTORY, exist_ok=True)
+                except OSError:
+                    # home directory not accessible
+                    self.disabled = True
+                    return
+
                 with open(Stats.ENABLED_PATH, 'w') as f:
                     f.write(self.anonymous_user_id)
             else:
@@ -232,6 +248,7 @@ class Stats:
 
         >>> Stats.instance = None
         >>> stats = Stats()
+        >>> stats.anonymous_user_id = 'uuid'
         >>> mock.mock(stats, '_send')
 
         >>> stats.disabled = True
@@ -239,7 +256,6 @@ class Stats:
         >>> mock.calls_for('Stats._send')
 
         >>> stats.disabled = False
-        >>> stats.anonymous_user_id = 'uuid'
         >>> stats.payload = {'some': 'payload'}
 
         >>> stats.result("Successful run")
@@ -260,10 +276,11 @@ class Stats:
          'some': 'payload'}
         """
 
+        self.generate_anonymous_user_id()
+
         if self.disabled:
             return
 
-        self.generate_anonymous_user_id()
         if sys.exc_info()[0]:
             self.payload['exception'] = Stats.EXCEPTION_FILE_PATTERN.sub(Stats.EXCEPTION_FILE_REPLACEMENT, traceback.format_exc())
         self._send(message, self.payload)

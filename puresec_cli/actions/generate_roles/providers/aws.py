@@ -13,10 +13,10 @@ import weakref
 from puresec_cli.actions.generate_roles.providers.base import Base
 from puresec_cli.actions.generate_roles.providers.aws_api import AwsApi
 from puresec_cli.actions.generate_roles.runtimes import aws as runtimes
-from puresec_cli.utils import eprint, capitalize
+from puresec_cli.utils import eprint, camelcase
 
 class AwsProvider(Base, AwsApi):
-    def __init__(self, path, config, resource_template=None, runtime=None, framework=None, function=None, args=None):
+    def __init__(self, path, config, resource_template=None, runtime=None, handler=None, function_name=None, framework=None, function=None, args=None):
         """
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
@@ -40,6 +40,8 @@ class AwsProvider(Base, AwsApi):
             path, config,
             resource_template=resource_template,
             runtime=runtime,
+            handler=handler,
+            function_name=function_name,
             framework=framework,
             function=function,
             args=args
@@ -48,8 +50,13 @@ class AwsProvider(Base, AwsApi):
         if not self.resource_template and not self.runtime:
             eprint("error: must supply either --resource-template, --runtime, or --framework")
             raise SystemExit(2)
-        if self.resource_template and self.runtime:
-            eprint("warn: ignoring --runtime when --resource-template or --framework supplied")
+        if self.resource_template:
+            if self.runtime:
+                eprint("warn: ignoring --runtime when --resource-template or --framework supplied")
+            if self.handler:
+                eprint("warn: ignoring --handler when --resource-template or --framework supplied")
+            if self.function_name:
+                eprint("warn: ignoring --function-name when --resource-template or --framework supplied")
 
         self._init_session()
         self._init_default_region()
@@ -77,7 +84,7 @@ class AwsProvider(Base, AwsApi):
     def roles(self):
         roles = {}
         for name, function_permissions in self.permissions.items():
-            role = roles["PureSec{}Role".format(capitalize(name))] = {
+            role = roles["PureSec{}Role".format(camelcase(name))] = {
                 'Type': 'AWS::IAM::Role',
                 'Properties': {
                     'Path': '/',
@@ -109,7 +116,7 @@ class AwsProvider(Base, AwsApi):
         return roles
 
     def result(self):
-        resources = {'Resources': self.roles()}
+        resources = {'Resources': self.roles}
         print(AwsProvider.TEMPLATE_DUMPERS[self.cloudformation_filetype or '.yml'](resources))
 
     def _init_session(self):
@@ -398,12 +405,14 @@ class AwsProvider(Base, AwsApi):
         if self.cloudformation_template:
             resources = self.cloudformation_template.get('Resources', {})
         else:
+            function_name = self.function_name or 'Unnamed'
             resources = {
-                'UnnamedFunction': {
+                '{}Function'.format(camelcase(function_name)): {
                     'Type': 'AWS::Lambda::Function',
                     'Properties': {
-                        'FunctionName': 'Unnamed',
+                        'FunctionName': function_name,
                         'Runtime': self.runtime,
+                        'Handler': self.handler,
                     }
                 }
             }

@@ -37,6 +37,10 @@ class GenerateRoles(Base):
 
         parser.add_argument('--runtime', '-r', choices=aws.__all__,
                             help="Runtime language (optional)")
+        parser.add_argument('--handler',
+                            help="Function handler (optional)")
+        parser.add_argument('--function-name',
+                            help="Function name (optional)")
 
         parser.add_argument('--framework', '-f', choices=frameworks.__all__,
                             help="Framework used for deploying (optional)")
@@ -65,6 +69,9 @@ class GenerateRoles(Base):
         parser.add_argument('--yes', '-y', action='store_true',
                             help="Yes for all - overwrite files, remove old roles, etc.")
 
+        parser.add_argument('--no-input', action='store_true',
+                            help="Specify that there is not input available (no STDIN)")
+
 
     def __init__(self, args):
         super().__init__(args)
@@ -74,6 +81,8 @@ class GenerateRoles(Base):
             provider=self.args.provider,
             resource_template=bool(self.args.resource_template),
             runtime=self.args.runtime,
+            handler=bool(self.args.handler),
+            function_name=bool(self.args.function_name),
             framework=self.args.framework,
             framework_path=bool(self.args.framework_path),
             function=bool(self.args.function),
@@ -85,6 +94,7 @@ class GenerateRoles(Base):
             remove_obsolete=self.args.remove_obsolete,
             no_remove_obsolete=self.args.no_remove_obsolete,
             yes=self.args.yes,
+            no_input=self.args.no_input,
         )
 
     @contextmanager
@@ -144,6 +154,8 @@ class GenerateRoles(Base):
             path, config,
             resource_template=self.args.resource_template,
             runtime=self.args.runtime,
+            handler=self.args.handler,
+            function_name=self.args.function_name,
             framework=framework,
             function=self.args.function,
             args=self.args,

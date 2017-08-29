@@ -235,7 +235,7 @@ class PythonRuntime(Base, PythonApi):
 
                 self._permissions[service][region][account] # accessing to initialize defaultdict
 
-    def _get_regions(filename, contents, regions, service, account):
+    def _get_regions(self, filename, contents, regions, service, account):
         processor = PythonRuntime.SERVICE_REGIONS_PROCESSOR.get(service)
         if processor:
             processor(self)(filename, contents, regions, account=account)

@@ -26,7 +26,7 @@ class ServerlessFramework(Base):
         self.query_suffix = " (only for `{}`)".format(self.function) if self.function else ""
 
         if os.path.exists(os.path.join(self.path, 'puresec-roles.yml')):
-            if not (self.args.yes or self.args.overwrite) and (self.args.no_overwrite or not input_query("Roles file already exists, overwrite?{}", self.query_suffix)):
+            if not (self.args.yes or self.args.overwrite) and (self.args.no_overwrite or self.args.no_input or not input_query("Roles file already exists, overwrite?{}", self.query_suffix)):
                 raise SystemExit(1)
 
     def __exit__(self, type, value, traceback):
@@ -269,6 +269,7 @@ class ServerlessFramework(Base):
         >>> args.yes = False
         >>> args.reference = False
         >>> args.no_reference = False
+        >>> args.no_input = False
 
         >>> mock.mock(None, 'input_query', False)
         >>> config = {'functions': {'some': {}, 'another': {}}}
@@ -291,7 +292,7 @@ class ServerlessFramework(Base):
             eprint("warn: `functions` section not found in serverless.yml")
             return
 
-        if (self.args.yes or self.args.reference) or (not self.args.no_reference and input_query("Reference functions to new roles?{}", self.query_suffix)):
+        if (self.args.yes or self.args.reference) or (not self.args.no_reference and not self.args.no_input and input_query("Reference functions to new roles?{}", self.query_suffix)):
             for name in permissions.keys():
                 if name not in config['functions']:
                     eprint("warn: `{}` not found under the `functions` section in serverless.yml", name)
@@ -363,7 +364,7 @@ class ServerlessFramework(Base):
 
         if old_roles:
             old_roles_format = "\n".join("  - {}".format(role) for role in old_roles)
-            if (self.args.yes or self.args.remove_obsolete) or (not self.args.no_remove_obsolete and input_query("These roles are now obsolete:\n{}\nWould you like to remove them?", old_roles_format)):
+            if (self.args.yes or self.args.remove_obsolete) or (not self.args.no_remove_obsolete and not self.args.no_input and input_query("These roles are now obsolete:\n{}\nWould you like to remove them?", old_roles_format)):
                 # default role
                 if not self.function and 'iamRoleStatements' in config.get('provider', ()):
                     del config['provider']['iamRoleStatements']
