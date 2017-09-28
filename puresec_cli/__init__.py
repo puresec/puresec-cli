@@ -1,4 +1,4 @@
 from puresec_cli.stats import stats
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 

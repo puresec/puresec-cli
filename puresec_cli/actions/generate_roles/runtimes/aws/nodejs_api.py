@@ -15,7 +15,7 @@ class NodejsApi:
         (name, re.compile(CALL_PATTERN_TEMPLATE.format(client_name), re.MULTILINE | re.DOTALL))
         for name, client_name in (
                 ('dynamodb', r"DynamoDB"),
-                ('dynamodb', r"DynamoDB\.DocumentClient"),
+                ('dynamodb', r"DocumentClient"),
                 ('dynamodb', r"DynamoDBStreams"),
                 ('kinesis', r"Kinesis"),
                 ('kms', r"KMS"),
