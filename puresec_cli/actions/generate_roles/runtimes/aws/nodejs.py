@@ -152,6 +152,11 @@ class NodejsRuntime(Base, NodejsApi):
         {'s3': {'default_region': {'default_account': {}}}}
         >>> runtime._permissions.clear()
 
+        >>> runtime._get_services("filename.js", ".S3({ region: 'localhost' })")
+        >>> pprint(normalize_dict(runtime._permissions))
+        {'s3': {'default_region': {'default_account': {}}}}
+        >>> runtime._permissions.clear()
+
         >>> runtime._get_services("filename.js", ".S3({ region: 'us-east-1' })")
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'us-east-1': {'default_account': {}}}}
@@ -224,7 +229,7 @@ class NodejsRuntime(Base, NodejsApi):
                 if arguments:
                     # region
                     region = self._get_variable_from_arguments(arguments, NodejsRuntime.REGION_PATTERN)
-                    if region is None:
+                    if region is None or region == 'localhost':
                         region = self.provider.default_region
                     elif not region:
                         eprint("warn: incomprehensive region: {} (in {}), falling back to '*'", arguments, filename)
@@ -244,7 +249,7 @@ class NodejsRuntime(Base, NodejsApi):
 
                 self._permissions[service][region][account] # accessing to initialize defaultdict
 
-    def _get_regions(filename, contents, regions, service, account):
+    def _get_regions(self, filename, contents, regions, service, account):
         processor = NodejsRuntime.SERVICE_REGIONS_PROCESSOR.get(service)
         if processor:
             processor(self)(filename, contents, regions, account=account)

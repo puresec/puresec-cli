@@ -143,6 +143,11 @@ class PythonRuntime(Base, PythonApi):
         {'s3': {'default_region': {'default_account': {}}}}
         >>> runtime._permissions.clear()
 
+        >>> runtime._get_services("filename.py", ".client('s3', region_name='localhost')")
+        >>> pprint(normalize_dict(runtime._permissions))
+        {'s3': {'default_region': {'default_account': {}}}}
+        >>> runtime._permissions.clear()
+
         >>> runtime._get_services("filename.py", ".client('s3', region_name='us-east-1')")
         >>> pprint(normalize_dict(runtime._permissions))
         {'s3': {'us-east-1': {'default_account': {}}}}
@@ -215,7 +220,7 @@ class PythonRuntime(Base, PythonApi):
                 if arguments:
                     # region
                     region = self._get_variable_from_arguments(arguments, PythonRuntime.REGION_PATTERN)
-                    if region is None:
+                    if region is None or region == 'localhost':
                         region = self.provider.default_region
                     elif not region:
                         eprint("warn: incomprehensive region: {} (in {})", arguments, filename)
