@@ -44,9 +44,8 @@ class GenerateRoles(Base):
 
         parser.add_argument('--framework', '-f', choices=frameworks.__all__,
                             help="Framework used for deploying (optional)")
-
-        parser.add_argument('--framework-path', '-e',
-                            help="Path to the framework's executable, usually not needed.")
+        parser.add_argument('--framework-output',
+                            help="Path to the pre-built output of the framework, usually not needed.")
 
         parser.add_argument('--function',
                             help="Only generate roles for a specific function.")
@@ -84,7 +83,7 @@ class GenerateRoles(Base):
             handler=bool(self.args.handler),
             function_name=bool(self.args.function_name),
             framework=self.args.framework,
-            framework_path=bool(self.args.framework_path),
+            framework_output=bool(self.args.framework_output),
             function=bool(self.args.function),
 
             overwrite=self.args.overwrite,
@@ -119,7 +118,6 @@ class GenerateRoles(Base):
         else:
             framework = import_module("puresec_cli.actions.generate_roles.frameworks.{}".format(self.args.framework)).Framework(
                 path, config,
-                executable=self.args.framework_path,
                 function=self.args.function,
                 args=self.args,
             )
@@ -173,8 +171,5 @@ class GenerateRoles(Base):
                 with self.generate_framework(path, config) as framework:
                     with self.generate_provider(path, framework, config) as provider:
                         provider.process()
-                        if framework:
-                            framework.result(provider)
-                        else:
-                            provider.result()
+                        provider.result()
 

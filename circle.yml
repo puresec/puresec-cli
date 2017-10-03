@@ -4,7 +4,7 @@ machine:
 
 dependencies:
   override:
-    # CircleCI seems to be having an old setuptools/pip on 3.4 that cannot handle ruamel
+    # CircleCI seems to be having an old setuptools/pip on 3.4 that cannot handle some packages
     - pip3.4 install --upgrade pip setuptools
 
     - python3.4 setup.py install
