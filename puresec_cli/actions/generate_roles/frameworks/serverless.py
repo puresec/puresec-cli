@@ -1,26 +1,25 @@
 from ruamel.yaml import YAML
-from tempfile import TemporaryDirectory
 from zipfile import ZipFile, BadZipFile
-import json
 import os
-import re
-import subprocess
 
 from puresec_cli.actions.generate_roles.frameworks.base import Base
+from puresec_cli.frameworks.serverless import Serverless
 from puresec_cli.utils import eprint, input_query, capitalize
 
 yaml = YAML() # using non-breaking yaml now
 
-class ServerlessFramework(Base):
+class ServerlessFramework(Serverless, Base):
     def __init__(self, path, config, executable=None, function=None, args=None):
-        if not executable:
-            executable = 'serverless' # from environment (PATH)
-
-        super().__init__(
+        Base.__init__(
+            self,
             path, config,
-            executable=executable,
             function=function,
-            args=args
+            args=args,
+        )
+        Serverless.__init__(
+            self,
+            path,
+            executable=executable,
         )
 
         self.query_suffix = " (only for `{}`)".format(self.function) if self.function else ""
@@ -30,13 +29,11 @@ class ServerlessFramework(Base):
                 raise SystemExit(1)
 
     def __exit__(self, type, value, traceback):
-        super().__exit__(type, value, traceback)
-
-        if hasattr(self, '_serverless_package'):
-            self._serverless_package.cleanup()
+        Base.__exit__(self, type, value, traceback)
+        Serverless.__exit__(self, type, value, traceback)
 
     def role_prefix(self, name):
-        return self._serverless_config['service']['service']
+        return self.serverless_config['service']['service']
 
     def result(self, provider):
         permissions = provider.permissions
@@ -52,7 +49,7 @@ class ServerlessFramework(Base):
             config = yaml.load(f)
 
         new_resources = config.setdefault('resources', {}).setdefault('Resources', {})
-        old_resources = self._serverless_config['service'].get('resources', {}).get('Resources', {})
+        old_resources = self.serverless_config['service'].get('resources', {}).get('Resources', {})
 
         new_roles = self._add_roles(permissions, config, new_resources)
         old_roles = self._get_old_roles(config, old_resources, new_resources, new_roles)
@@ -71,7 +68,6 @@ class ServerlessFramework(Base):
         >>> from pprint import pprint
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
-        >>> mock.mock(ServerlessFramework, '_init_executable')
 
         >>> class Provider:
         ...     pass
@@ -136,7 +132,6 @@ class ServerlessFramework(Base):
         >>> from pprint import pprint
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
-        >>> mock.mock(ServerlessFramework, '_init_executable')
 
         >>> permissions = {'some': "some permissions", 'another': "another permissions"}
         >>> config = {}
@@ -164,7 +159,6 @@ class ServerlessFramework(Base):
         """
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
-        >>> mock.mock(ServerlessFramework, '_init_executable')
 
         >>> ServerlessFramework("path/to/project", {})._get_old_roles({}, {}, {}, set())
         []
@@ -236,7 +230,6 @@ class ServerlessFramework(Base):
         >>> from pprint import pprint
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
-        >>> mock.mock(ServerlessFramework, '_init_executable')
 
         >>> class Args:
         ...     pass
@@ -304,7 +297,6 @@ class ServerlessFramework(Base):
         >>> from pprint import pprint
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
-        >>> mock.mock(ServerlessFramework, '_init_executable')
 
         >>> class Args:
         ...     pass
@@ -384,113 +376,11 @@ class ServerlessFramework(Base):
                     if old_roles:
                         del new_resources[old_roles[0]]
 
-    def _package(self):
-        """
-        >>> from tests.mock import Mock
-        >>> mock = Mock(__name__)
-        >>> mock.mock(None, 'eprint')
-        >>> mock.mock(ServerlessFramework, '_init_executable')
-
-        >>> ServerlessFramework("path/to/project", {})._package()
-        Traceback (most recent call last):
-        SystemExit: -1
-        >>> mock.calls_for('eprint')
-        'error: could not find serverless config in: {}', 'path/to/project/serverless.yml'
-        """
-
-        if not hasattr(self, '_serverless_package'):
-            # sanity check so that we know FileNotFoundError later means Serverless is not installed
-            serverless_config_path = os.path.join(self.path, "serverless.yml")
-            if not os.path.exists(serverless_config_path):
-                eprint("error: could not find serverless config in: {}", serverless_config_path)
-                raise SystemExit(-1)
-
-            self._serverless_package = TemporaryDirectory(prefix="puresec-")
-
-            try:
-                # Suppressing output
-                subprocess.check_output([self.executable, 'package', '--package', self._serverless_package.name], cwd=self.path, stderr=subprocess.STDOUT)
-            except FileNotFoundError:
-                eprint("error: serverless framework not installed, run `npm install -g severless` (or use --framework-path if not globally installed)")
-                raise SystemExit(-1)
-            except subprocess.CalledProcessError as e:
-                eprint("error: serverless package failed:\n{}", e.output.decode())
-                raise SystemExit(-1)
-
-    @property
-    def _serverless_config(self):
-        """
-        >>> from pprint import pprint
-        >>> from collections import namedtuple
-        >>> from tests.mock import Mock
-        >>> mock = Mock(__name__)
-        >>> mock.mock(None, 'eprint')
-        >>> mock.mock(ServerlessFramework, '_init_executable')
-
-        >>> TemporaryDirectory = namedtuple('TemporaryDirectory', ('name',))
-
-        >>> framework = ServerlessFramework("path/to/project", {})
-        >>> framework._package = lambda: None
-
-        >>> framework._serverless_package = TemporaryDirectory('/tmp/package')
-        >>> framework._serverless_config
-        Traceback (most recent call last):
-        SystemExit: -1
-        >>> mock.calls_for('eprint')
-        'error: serverless package did not create serverless-state.json'
-
-        >>> with mock.open('/tmp/package/serverless-state.json', 'w') as f:
-        ...     f.write('invalid') and None
-        >>> framework._serverless_config
-        Traceback (most recent call last):
-        SystemExit: -1
-        >>> mock.calls_for('eprint') # ValueError for <=3.4, JSONDecodeError for >=3.5
-        'error: invalid serverless-state.json:\\n{}', ...Error('Expecting value: line 1 column 1 (char 0)',)
-
-        >>> with mock.open('/tmp/package/serverless-state.json', 'w') as f:
-        ...     f.write('{ "x": { "y": 1 }, "z": 2 }') and None
-        >>> pprint(framework._serverless_config)
-        {'x': {'y': 1}, 'z': 2}
-        """
-
-        if hasattr(self, '_serverless_config_cache'):
-            return self._serverless_config_cache
-
-        self._package()
-        try:
-            serverless_config = open(os.path.join(self._serverless_package.name, 'serverless-state.json'), 'r', errors='replace')
-        except FileNotFoundError:
-            eprint("error: serverless package did not create serverless-state.json")
-            raise SystemExit(-1)
-
-        with serverless_config:
-            try:
-                self._serverless_config_cache = json.load(serverless_config)
-            except ValueError as e:
-                eprint("error: invalid serverless-state.json:\n{}", e)
-                raise SystemExit(-1)
-
-        return self._serverless_config_cache
-
-    def get_provider_name(self):
-        return self._serverless_config['service']['provider']['name']
-
-    def get_resource_template(self):
-        self._package()
-        return os.path.join(self._serverless_package.name, 'cloudformation-template-update-stack.json')
-
-    def get_default_profile(self):
-        return self._serverless_config['service']['provider'].get('profile')
-
-    def get_default_region(self):
-        return self._serverless_config['service']['provider'].get('region')
-
     def get_function_name(self, provider_function_name):
         """
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
-        >>> mock.mock(ServerlessFramework, '_init_executable')
 
         >>> framework = ServerlessFramework("path/to/project", {})
 
@@ -506,7 +396,7 @@ class ServerlessFramework(Base):
         'functionName'
         """
 
-        for name, function_config in self._serverless_config['service'].get('functions', {}).items():
+        for name, function_config in self.serverless_config['service'].get('functions', {}).items():
             if function_config['name'] == provider_function_name:
                 return name
 
@@ -514,15 +404,15 @@ class ServerlessFramework(Base):
         raise SystemExit(-1)
 
     def get_function_root(self, name):
-        self._package()
+        self.package()
 
         package_name = self._get_function_package_name(name)
-        function_root = os.path.join(self._serverless_package.name, package_name)
+        function_root = os.path.join(self.serverless_package.name, package_name)
         if os.path.exists(function_root):
             return function_root
 
         try:
-            zipfile = ZipFile(os.path.join(self._serverless_package.name, "{}.zip".format(package_name)), 'r')
+            zipfile = ZipFile(os.path.join(self.serverless_package.name, "{}.zip".format(package_name)), 'r')
         except FileNotFoundError:
             eprint("error: serverless package did not create a function zip for '{}'", name)
             raise SystemExit(2)
@@ -539,7 +429,6 @@ class ServerlessFramework(Base):
         >>> from tests.mock import Mock
         >>> mock = Mock(__name__)
         >>> mock.mock(None, 'eprint')
-        >>> mock.mock(ServerlessFramework, '_init_executable')
 
         >>> framework = ServerlessFramework("path/to/project", {})
 
@@ -552,8 +441,8 @@ class ServerlessFramework(Base):
         'functionName'
         """
 
-        if not self._serverless_config.get('package', {}).get('individually', False):
-            return self._serverless_config['service']['service']
+        if not self.serverless_config.get('package', {}).get('individually', False):
+            return self.serverless_config['service']['service']
         else:
             return name
 

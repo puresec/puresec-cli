@@ -193,8 +193,8 @@ def snakecase(string):
     """
 
     string = SNAKECASE_PATTERN1.sub(r"\g<1>_\g<2>", string)
-    string = SNAKECASE_PATTERN2.sub(r"\1_\2", string).lower()
-    return string
+    string = SNAKECASE_PATTERN2.sub(r"\1_\2", string)
+    return string.lower()
 
 def camelcase(string):
     """

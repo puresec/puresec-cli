@@ -42,12 +42,12 @@ class Mock:
         Mock.active = False
 
     def mock(self, module, name, return_value=None):
-        current_value = getattr(module or self.module, name, None)
-
         if (module, name) not in self.mocks:
-            self.mocks[(module, name)] = current_value
+            self.mocks[(module, name)] = getattr(module or self.module, name, None)
 
-        if current_value is None or callable(current_value):
+        original_value = self.mocks[(module, name)]
+
+        if original_value is None or callable(original_value):
             self = weakref.proxy(self)
             module_name = module.__name__ if hasattr(module, '__name__') else type(module).__name__
             call_name = "{}.{}".format(module_name, name) if module else name

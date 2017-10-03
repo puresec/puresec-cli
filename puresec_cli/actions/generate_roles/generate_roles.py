@@ -178,5 +178,3 @@ class GenerateRoles(Base):
                         else:
                             provider.result()
 
-Action = GenerateRoles
-

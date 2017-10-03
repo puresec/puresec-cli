@@ -15,33 +15,21 @@ class AwsApi:
 
     def _process_logs_configuration(self, name, resource_id, resource_config):
         """
-        >>> from pprint import pprint
+        >>> from tests.utils import normalize_dict
         >>> provider = AwsApi()
         >>> provider.default_region = 'us-east-1'
         >>> provider.default_account = '1234'
         >>> provider._function_permissions = {}
 
         >>> provider._process_logs_configuration('someFunction', 'SomeFunctionName', {'Properties': {'FunctionName': 'SomeFunction'}})
-        >>> pprint(provider._function_permissions)
-        {'someFunction': {'arn:aws:logs:us-east-1:1234:log-group:/aws/lambda/SomeFunction': {'logs:CreateLogGroup'},
-                          'arn:aws:logs:us-east-1:1234:log-group:/aws/lambda/SomeFunction:*': {'logs:CreateLogStream'},
-                          'arn:aws:logs:us-east-1:1234:log-group:/aws/lambda/SomeFunction:*/*': {'logs:PutLogEvents'}}}
+        >>> normalize_dict(provider._function_permissions)
+        {'someFunction': {'arn:aws:logs:us-east-1:1234:log-group:/aws/lambda/SomeFunction:*': {'logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'}}}
         """
 
         self._function_permissions. \
             setdefault(name, {}).   \
-            setdefault("arn:aws:logs:{}:{}:log-group:/aws/lambda/{}".format(self.default_region, self.default_account, resource_config['Properties']['FunctionName']), set()). \
-            add('logs:CreateLogGroup')
-
-        self._function_permissions. \
-            setdefault(name, {}).   \
             setdefault("arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*".format(self.default_region, self.default_account, resource_config['Properties']['FunctionName']), set()). \
-            add('logs:CreateLogStream')
-
-        self._function_permissions. \
-            setdefault(name, {}).   \
-            setdefault("arn:aws:logs:{}:{}:log-group:/aws/lambda/{}:*/*".format(self.default_region, self.default_account, resource_config['Properties']['FunctionName']), set()). \
-            add('logs:PutLogEvents')
+            update(('logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'))
 
     VPC_ACTIONS = (
         'ec2:DescribeNetworkInterfaces',

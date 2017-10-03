@@ -6,25 +6,6 @@ class Base:
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, path, config, resource_template=None, runtime=None, handler=None, function_name=None, framework=None, function=None, args=None):
-        """
-        >>> class Provider(Base):
-        ...     pass
-        >>> from puresec_cli.actions.generate_roles.frameworks.base import Base as FrameworkBase
-        >>> class Framework(FrameworkBase):
-        ...     def _init_executable(self): pass
-        ...     def get_resource_template(self):
-        ...         return "path/to/resource_template"
-
-        >>> Provider("path/to/project", config={}).resource_template
-
-        >>> Provider("path/to/project", config={}, resource_template="path/to/resource_template").resource_template
-        'path/to/resource_template'
-        >>> Provider("path/to/project", config={}, framework=Framework("", {}, 'ls')).resource_template
-        'path/to/resource_template'
-        >>> Provider("path/to/project", config={}, resource_template="path/to/custom_resource_template", framework=Framework("", {}, executable=None)).resource_template
-        'path/to/custom_resource_template'
-        """
-
         stats.payload['environment']['provider'] = type(self).__name__
 
         self.path = path
@@ -36,9 +17,6 @@ class Base:
         self.framework = framework
         self.function = function
         self.args = args
-
-        if not self.resource_template and self.framework:
-            self.resource_template = self.framework.get_resource_template()
 
     def __enter__(self):
         return self
@@ -54,13 +32,9 @@ class Base:
     def permissions(self):
         pass
 
-    @abc.abstractproperty
+    @abc.abstractmethod
     def result(self):
         pass
-
-    def runtimes(self):
-        """ Returns which runtimes were used and how many times. """
-        return {}
 
     def _get_function_root(self, name):
         """

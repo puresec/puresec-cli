@@ -45,7 +45,7 @@ def check_version():
     if not is_uptodate:
         eprint("warn: you are using an outdated version of PureSec CLI (installed={}, latest={})".format(puresec_cli.__version__, last_version))
 
-def main(argv=None):
+def main():
     try:
         check_version()
     except KeyboardInterrupt:
@@ -58,11 +58,10 @@ def main(argv=None):
     parser.add_argument('--stats', choices=['enable', 'disable'],
                         help="Enable/disable sending anonymous statistics (on by default)")
 
-
     subparsers = parser.add_subparsers(title="Available commands")
 
     for action_name in actions.__all__:
-        action = import_module("puresec_cli.actions.{}.action".format(action_name)).Action
+        action = import_module("puresec_cli.actions.{}".format(action_name)).Action
 
         subparser = subparsers.add_parser(action.command(), **action.argument_parser_options())
         action.add_arguments(subparser)
