@@ -299,8 +299,9 @@ class Base(RuntimeBase, BaseApi):
         >>> runtime._cleanup()
         >>> pprint(normalize_dict(runtime._permissions))
         {'dynamodb': {'us-west-1': {'111': {'table/a': {'dynamodb:GetItem'}}}},
-         's3': {'': {'another-account': {'anotherbucket': {'s3:ListObjects'}}, 'some-account': {'*': {'s3:CreateBucket'}}}}}
+         's3': {'': {'': {'*': {'s3:CreateBucket'}, 'anotherbucket': {'s3:ListObjects'}}}}}
         """
+
         # Region-less services
         for service in Base.REGIONLESS_SERVICES:
             if service not in self._permissions:
@@ -308,6 +309,15 @@ class Base(RuntimeBase, BaseApi):
             merged = reduce(deepmerge, self._permissions[service].values())
             self._permissions[service].clear()
             self._permissions[service][''] = merged
+
+        # Account-less services
+        for service in Base.ACCOUNTLESS_SERVICES:
+            if service not in self._permissions:
+                continue
+            for region, accounts in self._permissions[service].items():
+                merged = reduce(deepmerge, accounts.values())
+                accounts.clear()
+                accounts[''] = merged
 
         for service, resourceless_actions in Base.SERVICE_RESOURCELESS_ACTIONS.items():
             if service not in self._permissions:

@@ -172,6 +172,12 @@ class BaseApi:
 
     REGIONLESS_SERVICES = (
         's3',
+        'route53'
+    )
+
+    ACCOUNTLESS_SERVICES = (
+        's3',
+        'route53'
     )
 
     SERVICE_RESOURCELESS_ACTIONS = {
