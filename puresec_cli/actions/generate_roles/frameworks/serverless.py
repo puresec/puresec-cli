@@ -44,10 +44,9 @@ class ServerlessFramework(Serverless, Base):
 
         >>> framework._serverless_config_cache = {'service': {'functions': {'otherFunction': {'name': 'other-function'}}}}
         >>> framework.get_function_name('function-name')
-        Traceback (most recent call last):
-        SystemExit: -1
+        'function-name'
         >>> mock.calls_for('eprint')
-        "error: could not find Serverless name for function: '{}'", 'function-name'
+        "warn: could not find Serverless name for function: '{}'", 'function-name'
 
         >>> framework._serverless_config_cache = {'service': {'functions': {'functionName': {'name': 'function-name'}}}}
         >>> framework.get_function_name('function-name')
@@ -58,8 +57,7 @@ class ServerlessFramework(Serverless, Base):
             if function_config['name'] == provider_function_name:
                 return name
 
-        eprint("error: could not find Serverless name for function: '{}'", provider_function_name)
-        raise SystemExit(-1)
+        eprint("warn: could not find Serverless name for function: '{}'", provider_function_name)
 
     def get_function_root(self, name):
         if not hasattr(self, 'functions_output'):
