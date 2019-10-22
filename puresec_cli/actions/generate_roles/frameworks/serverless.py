@@ -44,7 +44,6 @@ class ServerlessFramework(Serverless, Base):
 
         >>> framework._serverless_config_cache = {'service': {'functions': {'otherFunction': {'name': 'other-function'}}}}
         >>> framework.get_function_name('function-name')
-        'function-name'
         >>> mock.calls_for('eprint')
         "warn: could not find Serverless name for function: '{}'", 'function-name'
 
